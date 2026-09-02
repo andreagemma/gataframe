@@ -5,8 +5,8 @@
 [![Python](https://img.shields.io/pypi/pyversions/gataframe.svg)](https://pypi.org/project/gataframe/)
 
 GataFrame is a lightweight Python library built around DuckDB relations. It
-adds a dataframe-style wrapper, schema-driven transformations, file/database
-read-write helpers, and small utilities for serialization and cleanup.
+adds a dataframe-style wrapper plus file and database read-write helpers for
+tabular and geospatial workflows.
 
 The PyPI distribution is named `gataframe`; the import package is named
 `gataframe`.
@@ -24,10 +24,9 @@ python -m pip install -e ".[test]"
 python -m pip install -e ".[dev]"
 ```
 
-Optional helpers:
+Optional parallel cleanup helpers are available with:
 
 ```bash
-python -m pip install -e ".[compression]"
 python -m pip install -e ".[parallel]"
 ```
 
@@ -101,56 +100,17 @@ PostgreSQL connection URLs.
 DuckDB extensions are loaded only when requested by the caller or needed by a
 specific geospatial/database operation.
 
-## Schemas
-
-`DataSchema` describes field names, DuckDB-compatible types, filters, limits,
-generated fields, and projections. It can be built directly from dictionaries or
-JSON files with Pydantic validation.
-
-```python
-from gataframe import DataSchema
-
-schema = DataSchema.model_validate(
-    {
-        "fields": [
-            {"name": "id", "type": "int", "nullable": False, "default": 0},
-            {"name": "name", "type": "string"},
-        ],
-        "project": ["id", "name"],
-    }
-)
-```
-
-Type aliases such as `int`, `string`, `float`, `array(int)`, and
-`map(text, int)` are normalized to DuckDB-compatible type strings.
-
-## Serialization
-
-`Serializer` provides pickle-compatible object serialization with optional
-compression. Standard-library compression methods such as `gzip`, `bz2`, `zip`,
-and `lzma` work without extra packages. Blosc, Snappy, and Dill support are
-available through the `compression` extra.
-
-```python
-from gataframe import Serializer
-
-payload = Serializer.dumps({"answer": 42}, compression="gzip")
-assert Serializer.loads(payload, compression="gzip") == {"answer": 42}
-```
-
 ## API Summary
 
 - `connect(logger=None, extensions=None, options=None, file_based=False, file=None)`
-- `read(engine, source, schema=None, format=None, pre_limit=None, limit=None, ...)`
+- `read(engine, source, format=None, pre_limit=None, limit=None, ...)`
 - `write(engine, df, destination, mode="overwrite", partitionBy=None, ...)`
 - `Engine.connect(...)`
-- `Engine.read(source, schema=None, format=None, ...)`
+- `Engine.read(source, format=None, ...)`
 - `Engine.write(df, destination, mode="overwrite", ...)`
 - `GataFrame.withColumn(...)`, `replaceColumn(...)`, `renameColumn(...)`
 - `GataFrame.select(...)`, `filter(...)`, `limit(...)`, `union(...)`
-- `GataFrame.apply_schema(schema)` and `GataFrame.get_schema(...)`
-- `DataSchema`, `SchemaField`, `AdditionalSchemaField`, and reader configs
-- `Serializer.dumps(...)`, `loads(...)`, `dump(...)`, and `load(...)`
+- `GataFrame.toPandas()`, `toGeoPandas(...)`, and `toPandasOrGeoPandas(...)`
 
 ## Development
 

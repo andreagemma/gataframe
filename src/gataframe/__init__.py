@@ -20,7 +20,6 @@ from .data_schema import (
 )
 from .engine import Engine
 from .gata_frame import GFDataType, GataFrame
-from .serializer import Serializer
 
 __all__ = [
     "__version__",
@@ -39,7 +38,6 @@ __all__ = [
     "ReaderConfig",
     "SchemaField",
     "SchemaMetadata",
-    "Serializer",
     "ShpReaderConfig",
     "StructField",
     "read",

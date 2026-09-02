@@ -10,3 +10,5 @@ All notable changes to this project will be documented in this file.
   license information for GataFrame.
 - Fixed valid `GataFrame` column operations that were rejected by overly broad
   assertion checks.
+- Removed the serializer helper from the public package and documentation.
+

@@ -13,7 +13,7 @@ basic dataframe work does not try to install DuckDB extensions.
 
 ```python
 Engine.connect(...)
-engine.read(source, schema=None, format=None, pre_limit=None, limit=None, ...)
+engine.read(source, format=None, pre_limit=None, limit=None, ...)
 engine.write(df, destination, mode="overwrite", ...)
 ```
 
@@ -39,37 +39,5 @@ Main methods:
 - `select(*columns)`, `filter(expression)`, and `limit(n)`
 - `createTable(...)`, `createView(...)`, `dropTable(...)`, and `dropView(...)`
 - `union(other)`, `sql(sql)`, and `execute(sql)`
-- `as_type(columns)` and `apply_schema(schema)`
+- `as_type(columns)`
 - `toPandas()`, `toGeoPandas(...)`, and `toPandasOrGeoPandas(...)`
-
-## `DataSchema`
-
-```python
-DataSchema.model_validate({...})
-DataSchema.from_json_file(path)
-```
-
-Defines schema fields, mapping rules, generated fields, filters, limits,
-projections, metadata, and reader options. Types are normalized to
-DuckDB-compatible strings.
-
-Related classes:
-
-- `SchemaField`
-- `AdditionalSchemaField`
-- `GeneratorSpec`
-- `ReaderConfig`, `CsvReaderConfig`, `ParquetReaderConfig`,
-  `GeoParquetReaderConfig`, `JsonReaderConfig`, `GpkgReaderConfig`,
-  `ShpReaderConfig`
-
-## `Serializer`
-
-```python
-Serializer.dumps(data, compression=None, clevel=5, to_string=False)
-Serializer.loads(data, compression=None)
-Serializer.dump(data, path, compression=None, clevel=5, to_string=False)
-Serializer.load(path, compression=None)
-```
-
-Serializes Python objects with pickle-compatible behavior and optional
-compression.
