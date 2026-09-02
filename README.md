@@ -1,20 +1,20 @@
 # GataFrame
 
 [![CI](https://github.com/andreagemma/gataframe/actions/workflows/ci.yml/badge.svg)](https://github.com/andreagemma/gataframe/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/gataframe.svg)](https://pypi.org/project/gataframe/)
-[![Python](https://img.shields.io/pypi/pyversions/gataframe.svg)](https://pypi.org/project/gataframe/)
+[![PyPI](https://img.shields.io/pypi/v/ga-gataframe.svg)](https://pypi.org/project/ga-gataframe/)
+[![Python](https://img.shields.io/pypi/pyversions/ga-gataframe.svg)](https://pypi.org/project/ga-gataframe/)
 
 GataFrame is a lightweight Python library built around DuckDB relations. It
 adds a dataframe-style wrapper plus file and database read-write helpers for
 tabular and geospatial workflows.
 
-The PyPI distribution is named `gataframe`; the import package is named
+The PyPI distribution is named `ga-gataframe`; the import package is named
 `gataframe`.
 
 ## Installation
 
 ```bash
-python -m pip install gataframe
+python -m pip install ga-gataframe
 ```
 
 Development and test tools are available as extras:
@@ -135,7 +135,7 @@ This project is prepared for the future repository `andreagemma/gataframe`.
 1. Create the empty repository on GitHub.
 2. Initialize the local repository if needed and push the project to `main`.
 3. Confirm the CI workflow passes on GitHub.
-4. Configure the PyPI Trusted Publisher for project `gataframe`, owner
+4. Configure the PyPI Trusted Publisher for project `ga-gataframe`, owner
    `andreagemma`, repository `gataframe`, workflow `release.yml`, and
    environment `pypi`.
 

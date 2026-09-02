@@ -3,7 +3,7 @@ requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gataframe"
+name = "ga-gataframe"
 dynamic = ["version"]
 description = "DuckDB-backed dataframe helpers for tabular and geospatial data workflows."
 readme = "README.md"
