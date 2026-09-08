@@ -1,8 +1,24 @@
 name: Build and publish
+run-name: Build and publish - ${{ inputs.commit_name || github.ref_name }}
 
 on:
+  workflow_call:
+    inputs:
+      commit_name:
+        description: Commit name shown in run title
+        required: false
+        type: string
+      publish:
+        description: Publish the built distributions to PyPI
+        required: true
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
+      commit_name:
+        description: Commit name shown in run title
+        required: false
+        type: string
       publish:
         description: Publish the built distributions to PyPI
         required: true
@@ -36,7 +52,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    if: inputs.publish
+    if: ${{ inputs.publish }}
     needs: build
     runs-on: ubuntu-latest
     environment:

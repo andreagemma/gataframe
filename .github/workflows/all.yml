@@ -1,0 +1,44 @@
+name: Quality, CI and Release WHL
+run-name: Quality, CI and Release WHL - ${{ inputs.commit_name || github.ref_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_name:
+        description: Commit name shown in run title
+        required: false
+        type: string
+      version:
+        description: Release/tag (optional). If empty use the package version
+        required: false
+        type: string
+        default: ""
+      overwrite_existing:
+        description: Overwrite existing release/tag in create-release-whl
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  quality:
+    uses: ./.github/workflows/quality.yml
+    with:
+      commit_name: ${{ inputs.commit_name }}
+
+  ci:
+    needs: quality
+    uses: ./.github/workflows/ci.yml
+    with:
+      commit_name: ${{ inputs.commit_name }}
+
+  create_release_whl:
+    needs: ci
+    uses: ./.github/workflows/create-release-whl.yml
+    with:
+      commit_name: ${{ inputs.commit_name }}
+      version: ${{ inputs.version }}
+      overwrite_existing: ${{ inputs.overwrite_existing }}

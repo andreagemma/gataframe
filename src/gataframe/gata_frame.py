@@ -101,10 +101,12 @@ class GataFrame:
 
             con = Engine.connect(logger=None, extensions=None, options=None, file_based=False)
             if con is not None:
-                tmp_con = con
+                final_conn: DuckDBPyConnection = con
             else:
                 raise ValueError("GataFrame requires a duckdb connection or object with .connection attribute.")
-        self._con: DuckDBPyConnection = tmp_con
+        else:
+            final_conn: DuckDBPyConnection = tmp_con
+        self._con: DuckDBPyConnection = final_conn
         self._uuid: str = uuid4().hex
         self._alias: str | None = alias
         self._type = self.TypeRelation
@@ -292,7 +294,7 @@ class GataFrame:
         else:
             raise ValueError("Parameters are not valid.")
 
-    def renameColumn(self, cols: str | dict[str, str], rename: str | None, inplace: bool = False) -> GataFrame:
+    def renameColumn(self, cols: str | dict[str, str], rename: str | None = None, inplace: bool = False) -> GataFrame:
         assert isinstance(cols, (str, dict)), (
             "cols must be a string or a dictionary mapping column names with expressions."
         )
@@ -952,7 +954,7 @@ class GataFrame:
         return gdf
 
     def toPandasOrGeoPandas(
-        self, geometry: str = "geometry", crs: str = "EPSG:4326"
+        self, geometry: str | None = "geometry", crs: str | None = "EPSG:4326"
     ) -> pd.DataFrame | gpd.GeoDataFrame | None:
         dtypes: dict[str, DuckDBPyType] = self.dtypes
         rel = self._rel
@@ -965,9 +967,15 @@ class GataFrame:
         if not geometry_founds:
             return df
         else:
-            if geometry not in geometry_founds:
+            if geometry is None:
                 geometry = geometry_founds[0]
-                warnings.warn(f'Geometry column "{geometry}" not found. Will use "{geometry}" instead.')
+                warnings.warn(f'Geometry column "{geometry}" found. Will use to create GeoDataFrame.')
+            if geometry not in geometry_founds:
+                warnings.warn(f'Geometry column "{geometry}" not found. Will use "{geometry_founds[0]}" instead.')
+                geometry = geometry_founds[0]
+            if crs is None:
+                crs = "EPSG:4326"
+                warnings.warn(f'CRS not specified. Will use "{crs}" as default.')
             gdf = gpd.GeoDataFrame(df.drop(columns=[geometry]), geometry=gpd.GeoSeries.from_wkt(df[geometry]), crs=crs)
             return gdf
 

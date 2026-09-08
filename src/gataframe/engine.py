@@ -316,7 +316,7 @@ class Engine:
                     src_path, patterns=["**/*.parquet", "**/*.pq", "**/*.geoparquet"]
                 )
                 rel: duckdb.DuckDBPyRelation = self.connection.read_parquet(
-                    file_globs=files,  # pyright: ignore[reportOptionalMemberAccess]
+                    path_or_buffer=files,  # pyright: ignore[reportOptionalMemberAccess]
                     hive_partitioning=True,
                     **kwargs,
                 )  # pyright: ignore[reportArgumentType]
