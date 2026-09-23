@@ -39,6 +39,22 @@ def clean_folder(
     n_jobs: int | None = -1,
     batch_size: int = 5000,
 ) -> int:
+    """Clean folder.
+
+    Args:
+        root: TODO describe root.
+        age: TODO describe age.
+        unit: TODO describe unit.
+        time_type: TODO describe time_type.
+        recursive: TODO describe recursive.
+        remove_empty_dirs: TODO describe remove_empty_dirs.
+        n_jobs: TODO describe n_jobs.
+        batch_size: TODO describe batch_size.
+
+    Returns:
+        TODO describe return value.
+
+    """
     if n_jobs is None or n_jobs in (0, 1):
         return _clean_folder(
             root=root, age=age, unit=unit, time_type=time_type, recursive=recursive, remove_empty_dirs=remove_empty_dirs
@@ -85,6 +101,7 @@ def _clean_folder(
 
     Returns number of deleted files.
     """
+    # Internal helper: clean folder.
     root = Path(root)
     if not root.is_dir():
         raise ValueError(f"Path '{root}' is not a directory")
@@ -100,6 +117,12 @@ def _clean_folder(
     deleted = 0
 
     def scan(dir_path: str | Path):
+        """Scan.
+
+        Args:
+            dir_path: TODO describe dir_path.
+
+        """
         nonlocal deleted
 
         try:
@@ -143,6 +166,8 @@ def _clean_folder(
 
 
 def _delete_batch(files: list[str]) -> int:
+    # Internal helper: delete batch.
+    """Internal helper: delete batch."""
     deleted = 0
     for f in files:
         try:
@@ -167,6 +192,7 @@ def _clean_folder_parallel(
     Ultra-fast cleanup of old files using joblib parallelism.
     Supports optional recursive scanning and removal of empty directories.
     """
+    # Internal helper: clean folder parallel.
     try:
         from joblib import Parallel, delayed  # pyright: ignore[reportMissingTypeStubs, reportMissingImports, reportUnknownVariableType]
     except ImportError:

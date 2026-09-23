@@ -13,6 +13,8 @@ from .conversion_types import DUCKDB_TYPE_ALIASES, duckdb_type_to_pandas
 
 
 def _normalize_col_name(col: str) -> str:
+    # Internal helper: normalize col name.
+    """Internal helper: normalize col name."""
     return col.strip().strip('"').strip("'")
 
 
@@ -46,6 +48,15 @@ class GFDataType(Enum):
 
     @classmethod
     def parse(cls, value: str) -> GFDataType:
+        """Parse.
+
+        Args:
+            value: TODO describe value.
+
+        Returns:
+            TODO describe return value.
+
+        """
         value = value.upper()
         for dtype in cls:
             if dtype.value == value:
@@ -64,6 +75,18 @@ class GataFrame:
     def __new__(
         cls, df: DuckDBPyRelation | GataFrame, con: DuckDBPyConnection | Any | None = None, *args: Any, **kwargs: Any
     ) -> GataFrame:
+        """Implement `__new__`.
+
+        Args:
+            df: TODO describe df.
+            con: TODO describe con.
+            args: TODO describe args.
+            kwargs: TODO describe kwargs.
+
+        Returns:
+            TODO describe return value.
+
+        """
         if isinstance(df, cls):
             df._fresh = False
             return df  # restituisce esattamente lo stesso oggetto
@@ -81,6 +104,18 @@ class GataFrame:
         *args: Any,
         **kwargs: Any,
     ) -> None:
+        """Implement `__init__`.
+
+        Args:
+            df: TODO describe df.
+            con: TODO describe con.
+            alias: TODO describe alias.
+            description: TODO describe description.
+            version: TODO describe version.
+            args: TODO describe args.
+            kwargs: TODO describe kwargs.
+
+        """
         if not getattr(self, "_fresh", False):
             return
         self._fresh: bool = False
@@ -116,6 +151,8 @@ class GataFrame:
         self._ops: list[str] = ["init"]
 
     def _append_op(self, op: str | Iterable[str] | None):
+        # Internal helper: append op.
+        """Internal helper: append op."""
         if op is None:
             return
         if isinstance(op, str):
@@ -130,6 +167,8 @@ class GataFrame:
         alias: str | None = None,
         type_: str = TypeRelation,
     ) -> GataFrame:
+        # Internal helper: create from relation.
+        """Internal helper: create from relation."""
         new_df = GataFrame(rel, self._con, alias=alias, description=self._description, version=self._version + 1)
         new_df._set_status(alias, type_)
         new_df._ops = self._ops.copy()
@@ -138,6 +177,15 @@ class GataFrame:
 
     @staticmethod
     def get_new_alias(prefix: str = "t_") -> str:
+        """Get new alias.
+
+        Args:
+            prefix: TODO describe prefix.
+
+        Returns:
+            TODO describe return value.
+
+        """
         alias: str = uuid4().hex
         if prefix:
             alias = prefix + alias
@@ -145,12 +193,20 @@ class GataFrame:
 
     @staticmethod
     def _get_status_by_name(name: str, type_: str | None = None) -> dict[str, Any] | None:
+        # Internal helper: get status by name.
+        """Internal helper: get status by name."""
         for _, v in GataFrame.GataFramesStatus.items():
             if v.get("alias", None) == name and (type_ is None or v.get("type", None) == type_):
                 return v
         return None
 
     def __str__(self) -> str:
+        """Implement `__str__`.
+
+        Returns:
+            TODO describe return value.
+
+        """
         attrs: list[str] = []
         if self._description:
             attrs.append(f"description={self._description}")
@@ -165,43 +221,95 @@ class GataFrame:
         return ret
 
     def _set_status(self, alias: str | None, type_: str):
+        # Internal helper: set status.
+        """Internal helper: set status."""
         GataFrame.GataFramesStatus[self._uuid] = {"alias": alias, "type": type_, "df": self}
         self._alias = alias
         self._type = type_
 
     def _reset(self):
+        # Internal helper: reset.
+        """Internal helper: reset."""
         self._set_status(None, self.TypeRelation)
 
     def _set_inconsistent(self):
+        # Internal helper: set inconsistent.
+        """Internal helper: set inconsistent."""
         self._set_status(None, self.TypeInconsistent)
 
     @property
     def uuid(self) -> str:
+        """Uuid.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._uuid
 
     @property
     def conection(self) -> DuckDBPyConnection:
+        """Conection.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._con
 
     @property
     def relation(self) -> DuckDBPyRelation:
+        """Relation.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._rel
 
     @property
     def get_type(self) -> str:
+        """Get type.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._type
 
     @property
     def alias(self) -> str | None:
+        """Alias.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._alias
 
     def show(self, max_rows: int | None = 10, logger: logging.Logger | None = None) -> None:
+        """Show.
+
+        Args:
+            max_rows: TODO describe max_rows.
+            logger: TODO describe logger.
+
+        Returns:
+            TODO describe return value.
+
+        """
         if logger:
             logger.info("\n" + str(self._rel.limit(max_rows) if max_rows is not None else self._rel))
         else:
             self._rel.show(max_rows=max_rows)
 
     def printSchema(self, logger: logging.Logger | None = None):
+        """PrintSchema.
+
+        Args:
+            logger: TODO describe logger.
+
+        """
         if logger:
             _p = logger.info
         else:
@@ -211,6 +319,13 @@ class GataFrame:
             _p(f"|-{name}: {dtype}")
 
     def explain(self, analyze: bool = False, logger: logging.Logger | None = None):
+        """Explain.
+
+        Args:
+            analyze: TODO describe analyze.
+            logger: TODO describe logger.
+
+        """
         if logger:
             _p = logger.info
         else:
@@ -223,37 +338,91 @@ class GataFrame:
 
     @property
     def empty(self) -> bool:
+        """Empty.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._rel.shape[0] == 0
 
     def isEmpty(self) -> bool:
+        """IsEmpty.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._rel.shape[0] == 0
 
     @property
     def shape(self) -> tuple[int, int]:
+        """Shape.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._rel.shape
 
     @property
     def count(self) -> int:
+        """Count.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._rel.shape[0]
 
     @property
     def n_cols(self) -> int:
+        """N cols.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._rel.shape[1]
 
     @property
     def n_rows(self) -> int:
+        """N rows.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._rel.shape[0]
 
     @property
     def columns(self) -> list[str]:
+        """Columns.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._rel.columns
 
     @property
     def types(self) -> list[DuckDBPyType]:
+        """Types.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._rel.types
 
     @property
     def dtypes(self) -> dict[str, DuckDBPyType]:
+        """Dtypes.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return dict(zip(self._rel.columns, self._rel.types))  # pyright: ignore[reportReturnType]
 
     @property
@@ -262,6 +431,17 @@ class GataFrame:
         return {name: duckdb_type_to_pandas(str(dtype)) for name, dtype in self.dtypes.items()}
 
     def withColumn(self, cols: str | dict[str, str], expr: Any | None = None, inplace: bool = False) -> GataFrame:
+        """WithColumn.
+
+        Args:
+            cols: TODO describe cols.
+            expr: TODO describe expr.
+            inplace: TODO describe inplace.
+
+        Returns:
+            TODO describe return value.
+
+        """
         assert isinstance(cols, (str, dict)), (
             "col must be a string or a dictionary mapping column names with expressions."
         )
@@ -300,6 +480,17 @@ class GataFrame:
             raise ValueError("Parameters are not valid.")
 
     def renameColumn(self, cols: str | dict[str, str], rename: str | None = None, inplace: bool = False) -> GataFrame:
+        """RenameColumn.
+
+        Args:
+            cols: TODO describe cols.
+            rename: TODO describe rename.
+            inplace: TODO describe inplace.
+
+        Returns:
+            TODO describe return value.
+
+        """
         assert isinstance(cols, (str, dict)), (
             "cols must be a string or a dictionary mapping column names with expressions."
         )
@@ -338,6 +529,16 @@ class GataFrame:
             return self._create_from_relation(new_df, op=op)
 
     def excludeColumn(self, *cols: Iterable[str | Iterable[str]], inplace: bool = True) -> GataFrame:
+        """ExcludeColumn.
+
+        Args:
+            inplace: TODO describe inplace.
+            cols: TODO describe cols.
+
+        Returns:
+            TODO describe return value.
+
+        """
         list_of_cols: list[str] = []
         for col in cols:
             if isinstance(col, str):
@@ -361,6 +562,17 @@ class GataFrame:
             return self._create_from_relation(new_df, op=op)
 
     def replaceColumn(self, cols: str | dict[str, str], expr: Any | None = None, inplace: bool = False) -> GataFrame:
+        """ReplaceColumn.
+
+        Args:
+            cols: TODO describe cols.
+            expr: TODO describe expr.
+            inplace: TODO describe inplace.
+
+        Returns:
+            TODO describe return value.
+
+        """
         assert isinstance(cols, (str, dict)), (
             "col must be a string or a dictionary mapping column names with expressions."
         )
@@ -400,6 +612,17 @@ class GataFrame:
     def project(
         self, *cols: Iterable[str | Iterable[str]], inplace: bool = False, include_others: bool = False
     ) -> GataFrame:
+        """Project.
+
+        Args:
+            inplace: TODO describe inplace.
+            include_others: TODO describe include_others.
+            cols: TODO describe cols.
+
+        Returns:
+            TODO describe return value.
+
+        """
         list_of_cols: list[str] = []
         for col in cols:
             if isinstance(col, str):
@@ -452,6 +675,16 @@ class GataFrame:
     select = project
 
     def filter(self, filter_expr: str, inplace: bool = False) -> GataFrame:
+        """Filter.
+
+        Args:
+            filter_expr: TODO describe filter_expr.
+            inplace: TODO describe inplace.
+
+        Returns:
+            TODO describe return value.
+
+        """
         new_df = self._rel.filter(filter_expr)
         op = f"filter({filter_expr})"
         if inplace:
@@ -463,6 +696,16 @@ class GataFrame:
             return self._create_from_relation(new_df, op=op)
 
     def limit(self, n: int | None, inplace: bool = False) -> GataFrame:
+        """Limit.
+
+        Args:
+            n: TODO describe n.
+            inplace: TODO describe inplace.
+
+        Returns:
+            TODO describe return value.
+
+        """
         if n is None:
             warnings.warn("Limit None is treated as no limit (full dataset).", UserWarning)
             new_df = self._rel
@@ -480,6 +723,18 @@ class GataFrame:
     def createTable(
         self, table_name: str | None = None, replace: bool = False, inplace: bool = False, temporary: bool = True
     ) -> GataFrame:
+        """CreateTable.
+
+        Args:
+            table_name: TODO describe table_name.
+            replace: TODO describe replace.
+            inplace: TODO describe inplace.
+            temporary: TODO describe temporary.
+
+        Returns:
+            TODO describe return value.
+
+        """
         if not (table_name):
             table_name = GataFrame.get_new_alias(prefix="t_")
         table_name = _n(table_name)
@@ -508,6 +763,17 @@ class GataFrame:
             return new_df
 
     def createView(self, view_name: str | None = None, replace: bool = False, inplace: bool = False) -> GataFrame:
+        """CreateView.
+
+        Args:
+            view_name: TODO describe view_name.
+            replace: TODO describe replace.
+            inplace: TODO describe inplace.
+
+        Returns:
+            TODO describe return value.
+
+        """
         if not (view_name):
             view_name = GataFrame.get_new_alias(prefix="v_")
         view_name = _n(view_name)
@@ -525,6 +791,12 @@ class GataFrame:
             return new_df
 
     def dropTable(self, name: str | None = None):
+        """DropTable.
+
+        Args:
+            name: TODO describe name.
+
+        """
         if name is None:
             if self._alias is None:
                 raise ValueError("No table name specified and current relation has no alias.")
@@ -542,6 +814,12 @@ class GataFrame:
             )
 
     def dropView(self, name: str | None = None):
+        """DropView.
+
+        Args:
+            name: TODO describe name.
+
+        """
         if name is None:
             if self._alias is None:
                 raise ValueError("No view name specified and current relation has no alias.")
@@ -562,6 +840,17 @@ class GataFrame:
     def dropColumn(
         self, *cols: Iterable[str | Iterable[str]], inplace: bool = False, table: str | None = None
     ) -> GataFrame | None:
+        """DropColumn.
+
+        Args:
+            inplace: TODO describe inplace.
+            table: TODO describe table.
+            cols: TODO describe cols.
+
+        Returns:
+            TODO describe return value.
+
+        """
         list_of_cols: list[str] = []
         for col in cols:
             if isinstance(col, str):
@@ -621,6 +910,15 @@ class GataFrame:
                     return df
 
     def exists(self, name: str | None = None) -> bool:
+        """Exists.
+
+        Args:
+            name: TODO describe name.
+
+        Returns:
+            TODO describe return value.
+
+        """
         if name is None:
             if self._alias is None:
                 warnings.warn(
@@ -635,6 +933,7 @@ class GataFrame:
             return False
 
     def drop(self):
+        """Drop."""
         if self._alias is None:
             warnings.warn("Current relation has no alias. Drop operation will not be performed.", UserWarning)
             return self
@@ -647,6 +946,16 @@ class GataFrame:
         return self
 
     def insertInto(self, target_table: str | GataFrame, inplace: bool = False) -> GataFrame:
+        """InsertInto.
+
+        Args:
+            target_table: TODO describe target_table.
+            inplace: TODO describe inplace.
+
+        Returns:
+            TODO describe return value.
+
+        """
         assert isinstance(target_table, (str, GataFrame)), (
             f"target_table must be a string or GataFrame. Got {type(target_table)}."
         )
@@ -680,6 +989,16 @@ class GataFrame:
             )  # pyright: ignore[reportOptionalMemberAccess]
 
     def union(self: GataFrame, right: GataFrame | DuckDBPyRelation, inplace: bool = False) -> GataFrame:
+        """Union.
+
+        Args:
+            right: TODO describe right.
+            inplace: TODO describe inplace.
+
+        Returns:
+            TODO describe return value.
+
+        """
         right = GataFrame(right, con=self._con)
         new_rel = self._rel.union(right._rel)
         if inplace:
@@ -691,6 +1010,17 @@ class GataFrame:
             return GataFrame(new_rel, self._con, op=f"union()", type_=self.TypeRelation)
 
     def persist(self, temporary: bool = False, force: bool = False, inplace: bool = False) -> GataFrame:
+        """Persist.
+
+        Args:
+            temporary: TODO describe temporary.
+            force: TODO describe force.
+            inplace: TODO describe inplace.
+
+        Returns:
+            TODO describe return value.
+
+        """
         table_name = f"__persist_{self._uuid}"
         if self.exists(table_name):
             if force:
@@ -705,6 +1035,7 @@ class GataFrame:
         return self
 
     def unpersist(self):
+        """Unpersist."""
         try:
             self.dropTable(f"{self._alias}")
         except Exception:
@@ -712,6 +1043,17 @@ class GataFrame:
         return self
 
     def sql(self, sql: str, inplace: bool = False, alias: str | None = None) -> GataFrame:
+        """Sql.
+
+        Args:
+            sql: TODO describe sql.
+            inplace: TODO describe inplace.
+            alias: TODO describe alias.
+
+        Returns:
+            TODO describe return value.
+
+        """
         new_df = self._con.sql(sql)  # pyright: ignore[reportOptionalMemberAccess]
         op = f"sql({sql[:30]}{'...' if len(sql) > 30 else ''})"
 
@@ -725,9 +1067,24 @@ class GataFrame:
             return self._create_from_relation(new_df, alias=alias, op=op)
 
     def execute(self, sql: str):
+        """Execute.
+
+        Args:
+            sql: TODO describe sql.
+
+        """
         self._con.execute(sql)  # pyright: ignore[reportOptionalMemberAccess]
 
     def distinct(self, inplace: bool = False) -> GataFrame:
+        """Distinct.
+
+        Args:
+            inplace: TODO describe inplace.
+
+        Returns:
+            TODO describe return value.
+
+        """
         new_df = self._rel.distinct()
         op = "distinct()"
         if inplace:
@@ -741,6 +1098,16 @@ class GataFrame:
     def orderBy(
         self, list_cols: list[str | dict[str, str] | tuple[str, bool] | list[str | bool]] | str, inplace: bool = False
     ) -> GataFrame:
+        """OrderBy.
+
+        Args:
+            list_cols: TODO describe list_cols.
+            inplace: TODO describe inplace.
+
+        Returns:
+            TODO describe return value.
+
+        """
         expr_cols: list[str] = []
         if isinstance(list_cols, str):
             list_cols = [list_cols]
@@ -769,12 +1136,39 @@ class GataFrame:
             return self._create_from_relation(new_df, op=op)
 
     def min(self, col: str) -> Any:
+        """Min.
+
+        Args:
+            col: TODO describe col.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._rel.min(col)
 
     def max(self, col: str) -> Any:
+        """Max.
+
+        Args:
+            col: TODO describe col.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return self._rel.max(col)
 
     def distinctCount(self, col: str) -> int:
+        """DistinctCount.
+
+        Args:
+            col: TODO describe col.
+
+        Returns:
+            TODO describe return value.
+
+        """
         ret = self._rel.aggregate(f"COUNT(DISTINCT {col})").fetchone()
         return ret[0] if ret else 0
 
@@ -790,6 +1184,8 @@ class GataFrame:
         type_width: int | None = None,
         type_precision: int | None = None,
     ) -> str:
+        # Internal helper: as type.
+        """Internal helper: as type."""
         if target_type == current_type:
             return expr
         if target_type == "DATE":
@@ -892,6 +1288,16 @@ class GataFrame:
     def as_type(
         self, columns: dict[str, str | DuckDBPyType | GFDataType | dict[str, Any]], inplace: bool = False
     ) -> GataFrame:
+        """As type.
+
+        Args:
+            columns: TODO describe columns.
+            inplace: TODO describe inplace.
+
+        Returns:
+            TODO describe return value.
+
+        """
         if not columns:
             return self if inplace else self._create_from_relation(self._rel, op="as_type({})")
 
@@ -940,6 +1346,12 @@ class GataFrame:
         return self._create_from_relation(new_rel, op=op)
 
     def toPandas(self) -> pd.DataFrame:
+        """ToPandas.
+
+        Returns:
+            TODO describe return value.
+
+        """
         dtypes: dict[str, DuckDBPyType] = self.dtypes
         rel = self._rel
         for name, dtype in dtypes.items():
@@ -949,6 +1361,16 @@ class GataFrame:
         return rel.df()
 
     def toGeoPandas(self, geometry: str = "geometry", crs: str = "EPSG:4326") -> gpd.GeoDataFrame:
+        """ToGeoPandas.
+
+        Args:
+            geometry: TODO describe geometry.
+            crs: TODO describe crs.
+
+        Returns:
+            TODO describe return value.
+
+        """
         dtypes: dict[str, DuckDBPyType] = self.dtypes
         rel = self._rel
         for name, dtype in dtypes.items():
@@ -966,6 +1388,18 @@ class GataFrame:
         suppress_geometry_default_warnings: bool = False,
         suppress_crs_not_specified_warnings: bool = False,
     ) -> pd.DataFrame | gpd.GeoDataFrame | None:
+        """ToPandasOrGeoPandas.
+
+        Args:
+            geometry: TODO describe geometry.
+            crs: TODO describe crs.
+            suppress_geometry_default_warnings: TODO describe suppress_geometry_default_warnings.
+            suppress_crs_not_specified_warnings: TODO describe suppress_crs_not_specified_warnings.
+
+        Returns:
+            TODO describe return value.
+
+        """
         dtypes: dict[str, DuckDBPyType] = self.dtypes
         rel = self._rel
         geometry_founds: list[str] = []
@@ -1015,12 +1449,16 @@ class GataFrame:
             return gdf
 
     def _norm(self, t: str | None) -> str:
+        # Internal helper: norm.
+        """Internal helper: norm."""
         if t is None:
             return ""
         return t.strip().upper()
 
     def _type_mapping(self, schema_type: str | DuckDBPyType | None) -> str:
         # mappa tipi da schema a tipi SQL standard (per il cast)
+        # Internal helper: type mapping.
+        """Internal helper: type mapping."""
         if schema_type is None:
             return ""
         if isinstance(schema_type, DuckDBPyType):
@@ -1034,6 +1472,8 @@ class GataFrame:
         return t
 
     def _apply_type(self, field: SchemaField | None, expr: str, current_type: str, target_type: str) -> str:
+        # Internal helper: apply type.
+        """Internal helper: apply type."""
         if field is None:
             return self._as_type(expr, current_type, target_type)
         return self._as_type(
@@ -1049,6 +1489,8 @@ class GataFrame:
         )
 
     def _parse_geometry_type(self, geom_type: str) -> tuple[str, str | None]:
+        # Internal helper: parse geometry type.
+        """Internal helper: parse geometry type."""
         if geom_type.upper().startswith("GEOMETRY"):
             if "(" in geom_type and ")" in geom_type:
                 inner = geom_type[geom_type.find("(") + 1 : geom_type.rfind(")")]
@@ -1076,6 +1518,8 @@ class GataFrame:
     def _additional_fields(
         self, new_df: GataFrame, fields: list[AdditionalSchemaField] | list[list[AdditionalSchemaField]] | None
     ) -> GataFrame:
+        # Internal helper: additional fields.
+        """Internal helper: additional fields."""
         if fields is None:
             return new_df
         sequence: list[AdditionalSchemaField] = []
@@ -1112,6 +1556,7 @@ class GataFrame:
         return new_df
 
     def __apply_mapping(self, mapping: dict[str, GeneratorSpec | str | None] | None) -> GataFrame:
+        """Internal helper: apply mapping."""
         dict_curr_types: dict[str, DuckDBPyType] = self.dtypes
         columns = self.columns
         if mapping is None or len(mapping) == 0:
@@ -1150,6 +1595,17 @@ class GataFrame:
         metadata: dict[str, Any] | None = None,
         reader: dict[str, Any] | None = None,
     ) -> DataSchema:
+        """Get schema.
+
+        Args:
+            fields_attributes: TODO describe fields_attributes.
+            metadata: TODO describe metadata.
+            reader: TODO describe reader.
+
+        Returns:
+            TODO describe return value.
+
+        """
         name = self._description or self._alias or f"relation_{self._uuid}"
         schema: dict[str, Any] = {
             "fields": [],
@@ -1182,7 +1638,16 @@ class GataFrame:
         return DataSchema.model_validate(schema)
 
     def apply_schema(self, schema: dict[str, Any] | DataSchema, inplace: bool = False) -> GataFrame:
+        """Apply schema.
 
+        Args:
+            schema: TODO describe schema.
+            inplace: TODO describe inplace.
+
+        Returns:
+            TODO describe return value.
+
+        """
         new_df: GataFrame | None = self
 
         if isinstance(schema, dict):
@@ -1362,6 +1827,16 @@ class GataFrame:
 
     @staticmethod
     def qident(name: str | None, cols: set[str] | list[str] | None = None) -> str:
+        """Qident.
+
+        Args:
+            name: TODO describe name.
+            cols: TODO describe cols.
+
+        Returns:
+            TODO describe return value.
+
+        """
         if name is None:
             return ""
         if cols is None:
@@ -1372,6 +1847,15 @@ class GataFrame:
 
     @staticmethod
     def qname(*parts: str) -> str:
+        """Qname.
+
+        Args:
+            parts: TODO describe parts.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return ".".join(GataFrame.qident(p, None) for p in parts if p)
 
 

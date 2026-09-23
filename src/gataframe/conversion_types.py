@@ -107,6 +107,15 @@ def duckdb_type_to_pandas(dtype: str) -> str:
 
 
 def duckdb_type_to_postgres(dtype: str) -> str:
+    """Duckdb type to postgres.
+
+    Args:
+        dtype: TODO describe dtype.
+
+    Returns:
+        TODO describe return value.
+
+    """
     t = dtype.strip().upper()
 
     if t == "GEOMETRY" or t.startswith("GEOMETRY("):

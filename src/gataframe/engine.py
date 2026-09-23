@@ -27,6 +27,8 @@ GataSourceType: TypeAlias = (
 
 
 def _is_jupyter() -> bool:
+    # Internal helper: is jupyter.
+    """Internal helper: is jupyter."""
     try:
         from IPython import get_ipython  # pyright: ignore[reportPrivateImportUsage]
 
@@ -39,6 +41,8 @@ def _is_jupyter() -> bool:
 
 
 def _has_ipywidgets() -> bool:
+    # Internal helper: has ipywidgets.
+    """Internal helper: has ipywidgets."""
     from importlib.util import find_spec
 
     return find_spec("ipywidgets") is not None
@@ -57,6 +61,15 @@ class SourceFormatEnum(Enum):
 
     @classmethod
     def parse(cls, value: str) -> SourceFormatEnum:
+        """Parse.
+
+        Args:
+            value: TODO describe value.
+
+        Returns:
+            TODO describe return value.
+
+        """
         normalized = value.strip().lower()
         for member in cls:
             if member.value == normalized:
@@ -78,6 +91,15 @@ class SourceFormat:
 
     @classmethod
     def parse(cls, value: str) -> str:
+        """Parse.
+
+        Args:
+            value: TODO describe value.
+
+        Returns:
+            TODO describe return value.
+
+        """
         normalized = value.strip().lower()
         for member_name, aliases in cls.__dict__.items():
             if not member_name.startswith("__") and member_name.endswith("_alias") and normalized in aliases:
@@ -97,7 +119,17 @@ class Engine:
         file: str | Path | None = None,
         **kwargs: dict[str, Any],
     ):
+        """Implement `__init__`.
 
+        Args:
+            logger: TODO describe logger.
+            extensions: TODO describe extensions.
+            options: TODO describe options.
+            file_based: TODO describe file_based.
+            file: TODO describe file.
+            kwargs: TODO describe kwargs.
+
+        """
         self.file_based: bool = file_based
         self.file: str | Path | None = file
 
@@ -172,6 +204,12 @@ class Engine:
             Engine.parallelism = row[0] if row else 1
 
         def fn_clean() -> None:
+            """Fn clean.
+
+            Returns:
+                TODO describe return value.
+
+            """
             removed_files: int = clean_folder(
                 temp_folder,
                 age=1,
@@ -191,6 +229,8 @@ class Engine:
         self._db_attached: dict[tuple[str, str], str] = {}  # (alias, schema) -> file/url
 
     def _ensure_extensions(self, extensions: tuple[str | tuple[str, str], ...] | None):
+        # Internal helper: ensure extensions.
+        """Internal helper: ensure extensions."""
         if extensions is None:
             return
         for extension in extensions:
@@ -219,21 +259,33 @@ class Engine:
                 self.loaded_extensions[extension] = True
 
     def _ensure_postgres(self):
+        # Internal helper: ensure postgres.
+        """Internal helper: ensure postgres."""
         self._ensure_extensions(("postgres",))
 
     def _ensure_h3(self):
+        # Internal helper: ensure h3.
+        """Internal helper: ensure h3."""
         self._ensure_extensions((("h3", "community"),))
 
     def _ensure_spatial(self):
+        # Internal helper: ensure spatial.
+        """Internal helper: ensure spatial."""
         self._ensure_extensions(("spatial",))
 
     def _ensure_sqlite_scanner(self):
+        # Internal helper: ensure sqlite scanner.
+        """Internal helper: ensure sqlite scanner."""
         self._ensure_extensions(("sqlite_scanner",))
 
     def _ensure_sqlite(self):
+        # Internal helper: ensure sqlite.
+        """Internal helper: ensure sqlite."""
         self._ensure_extensions(("sqlite",))
 
     def _ensure_encodings(self):
+        # Internal helper: ensure encodings.
+        """Internal helper: ensure encodings."""
         self._ensure_extensions(("encodings",))
 
     @staticmethod
@@ -245,14 +297,35 @@ class Engine:
         file: str | Path | None = None,
         **kwargs: dict[str, Any],
     ) -> Engine:
+        """Connect.
+
+        Args:
+            logger: TODO describe logger.
+            extensions: TODO describe extensions.
+            options: TODO describe options.
+            file_based: TODO describe file_based.
+            file: TODO describe file.
+            kwargs: TODO describe kwargs.
+
+        Returns:
+            TODO describe return value.
+
+        """
         return Engine(logger=logger, extensions=extensions, options=options, file_based=file_based, file=file, **kwargs)
 
     def __enter__(self) -> Engine:
+        """Implement `__enter__`.
+
+        Returns:
+            TODO describe return value.
+
+        """
         if self.engine is None:
             self.engine = Engine.connect()
         return self.engine
 
     def close(self):
+        """Close."""
         try:
             if self.connection is not None:
                 self.connection.close()
@@ -270,6 +343,14 @@ class Engine:
             self.logger.warning(f"Error to remove temp file {print_info}")
 
     def __exit__(self, exc_type: type | None, exc_value: BaseException | None, exc_tb: Any | None):
+        """Implement `__exit__`.
+
+        Args:
+            exc_type: TODO describe exc_type.
+            exc_value: TODO describe exc_value.
+            exc_tb: TODO describe exc_tb.
+
+        """
         self.close()
 
     # ---------------------------
@@ -277,6 +358,8 @@ class Engine:
     # ---------------------------
 
     def _is_db_url(self, s: str) -> bool:
+        # Internal helper: is db url.
+        """Internal helper: is db url."""
         if "://" not in s:
             return False
         if "|" in s:  # gpkg special
@@ -285,6 +368,8 @@ class Engine:
         return not p.exists()
 
     def _parse_gpkg_source(self, s: str) -> tuple[str, Optional[str]]:
+        # Internal helper: parse gpkg source.
+        """Internal helper: parse gpkg source."""
         if "|" not in s:
             return s, None
         a, b = s.split("|", 1)
@@ -293,6 +378,8 @@ class Engine:
         return a, b
 
     def _guess_format(self, p: Path) -> str:
+        # Internal helper: guess format.
+        """Internal helper: guess format."""
         ext = p.suffix.lower().lstrip(".").strip()
         try:
             # Normalize extensions to canonical reader keys used by `read`.
@@ -301,23 +388,31 @@ class Engine:
             return ext
 
     def _to_insensitive_pattern_ext(self, ext: str) -> str:
+        # Internal helper: to insensitive pattern ext.
+        """Internal helper: to insensitive pattern ext."""
         insensitive_ext = ""
         for c in ext.lower():
             insensitive_ext += f"[{c.lower()}{c.upper()}]"
         return insensitive_ext
 
     def _to_insensitive_pattern(self, pattern: str | Path) -> str:
+        # Internal helper: to insensitive pattern.
+        """Internal helper: to insensitive pattern."""
         p = Path(pattern)  # validate it's a valid path pattern
         ext = p.suffix.lower().lstrip(".").strip()
         insensitive_ext = self._to_insensitive_pattern_ext(ext)
         return str(p.with_suffix("." + insensitive_ext))
 
     def _to_insensitive_patterns(self, patterns: list[str]) -> list[str]:
+        # Internal helper: to insensitive patterns.
+        """Internal helper: to insensitive patterns."""
         return [self._to_insensitive_pattern(p) for p in patterns]
 
     def _list_supported_files_recursive(
         self, root: Path, patterns: list[str] = ["**/*.parquet", "**/*.pq", "**/*.csv", "**/*.gpkg", "**/*.shp"]
     ) -> list[str]:
+        # Internal helper: list supported files recursive.
+        """Internal helper: list supported files recursive."""
         files: list[Path] = []
         patterns = self._to_insensitive_patterns(patterns)
         for pat in patterns:
@@ -325,6 +420,8 @@ class Engine:
         return sorted({p.resolve().as_posix() for p in files if p.is_file()})
 
     def _kwargs_to_string(self, sep_kwargs: str = " ", quote_char: Any = "'", **kwargs: dict[str, Any]) -> str:
+        # Internal helper: kwargs to string.
+        """Internal helper: kwargs to string."""
         if kwargs:
             params = {}
             for k, v in kwargs.items():
@@ -339,6 +436,8 @@ class Engine:
         return params
 
     def _read_from_dict(self, source: dict, **kwargs: dict[str, Any]) -> duckdb.DuckDBPyRelation:
+        # Internal helper: read from dict.
+        """Internal helper: read from dict."""
         if not source:
             raise ValueError("Source dictionary is empty")
         if self.connection is None:
@@ -346,6 +445,8 @@ class Engine:
         return self.connection.from_df(pd.DataFrame.from_dict(source))
 
     def _read_from_list(self, source: list, **kwargs: dict[str, Any]) -> duckdb.DuckDBPyRelation:
+        # Internal helper: read from list.
+        """Internal helper: read from list."""
         if not source:
             raise ValueError("Source list is empty")
         if self.connection is None:
@@ -354,6 +455,8 @@ class Engine:
         return ret
 
     def _read_parquet(self, src_path: str | Path, **kwargs: dict[str, Any]) -> duckdb.DuckDBPyRelation:
+        # Internal helper: read parquet.
+        """Internal helper: read parquet."""
         self._ensure_spatial()
         kwargs.pop("file_globs", None)
         kwargs.pop("hive_partitioning", None)
@@ -382,6 +485,8 @@ class Engine:
             raise FileNotFoundError(f"Parquet source not found: {src_path}")
 
     def _read_csv(self, src_path: str | Path, **kwargs: dict[str, Any]) -> duckdb.DuckDBPyRelation:
+        # Internal helper: read csv.
+        """Internal helper: read csv."""
         rel: duckdb.DuckDBPyRelation | None = None  # pyright: ignore[reportRedeclaration, reportAssignmentType]
         if isinstance(src_path, str):
             src_path = Path(src_path)
@@ -412,6 +517,8 @@ class Engine:
             raise FileNotFoundError(f"CSV source not found: {src_path}")
 
     def _read_json(self, src_path: Path, **kwargs: dict[str, Any | str]) -> duckdb.DuckDBPyRelation:
+        # Internal helper: read json.
+        """Internal helper: read json."""
         kwargs.setdefault("union_by_name", True)  # pyright: ignore[reportArgumentType]
         if src_path.exists():
             if src_path.is_dir():
@@ -428,6 +535,8 @@ class Engine:
             raise FileNotFoundError(f"JSON source not found: {src_path}")
 
     def _read_geojson(self, src_path: Path, **kwargs: dict[str, Any]) -> duckdb.DuckDBPyRelation:
+        # Internal helper: read geojson.
+        """Internal helper: read geojson."""
         self._ensure_spatial()
         if src_path.exists():
             if src_path.is_dir():
@@ -449,6 +558,8 @@ class Engine:
             raise FileNotFoundError(f"GeoJSON source not found: {src_path}")
 
     def _read_sqlite(self, src_path: Path, **kwargs: dict[str, Any]) -> duckdb.DuckDBPyRelation:
+        # Internal helper: read sqlite.
+        """Internal helper: read sqlite."""
         self._ensure_spatial()
         if src_path.exists():
             if src_path.is_dir():
@@ -472,6 +583,8 @@ class Engine:
             raise FileNotFoundError(f"SQLite source not found: {src_path}")
 
     def _read_shp(self, src_path: Path, **kwargs: dict[str, Any]) -> duckdb.DuckDBPyRelation:
+        # Internal helper: read shp.
+        """Internal helper: read shp."""
         self._ensure_spatial()
         if src_path.exists():
             if src_path.is_dir():
@@ -493,6 +606,8 @@ class Engine:
             raise FileNotFoundError(f"SHP source not found: {src_path}")
 
     def _read_gpkg(self, src_path: str | Path, **kwargs: dict[str, Any | str]) -> duckdb.DuckDBPyRelation:
+        # Internal helper: read gpkg.
+        """Internal helper: read gpkg."""
         self._ensure_spatial()
         if isinstance(src_path, str):
             src_path = Path(src_path)
@@ -522,6 +637,8 @@ class Engine:
     def _read_postgres(
         self, src: str, pre_filter: str | None = None, pre_limit: int | None = None
     ) -> duckdb.DuckDBPyRelation:
+        # Internal helper: read postgres.
+        """Internal helper: read postgres."""
         self._ensure_postgres()
         self._ensure_spatial()
         # DuckDB expects parameters as a comma-separated string, while parse_qs returns lists
@@ -575,6 +692,8 @@ class Engine:
             raise ValueError(f"Unsupported database scheme: {db_scheme}")
 
     def _read_sqlite_db(self, src: str) -> duckdb.DuckDBPyRelation:
+        # Internal helper: read sqlite db.
+        """Internal helper: read sqlite db."""
         self._ensure_sqlite()
         self._ensure_spatial()
         # DuckDB expects parameters as a comma-separated string, while parse_qs returns lists
@@ -648,6 +767,8 @@ class Engine:
         ],
         ParseResult,
     ]:
+        # Internal helper: db params.
+        """Internal helper: db params."""
         parsed = urlparse(url)
         params = parse_qs(parsed.query)
         scheme = (parsed.scheme or "").lower()
@@ -664,6 +785,22 @@ class Engine:
         schema: str = "public",
         table: str = "",
     ) -> str:
+        """Create db string connection.
+
+        Args:
+            db_type: TODO describe db_type.
+            user: TODO describe user.
+            password: TODO describe password.
+            host: TODO describe host.
+            port: TODO describe port.
+            dbname: TODO describe dbname.
+            schema: TODO describe schema.
+            table: TODO describe table.
+
+        Returns:
+            TODO describe return value.
+
+        """
         if db_type in {"postgresql", "postgres"}:
             conn_str = f"{db_type}://{user}:{password}@{host}:{port}/{dbname}"
             options = []
@@ -687,7 +824,22 @@ class Engine:
         filter: str | None = None,
         **kwargs: dict[str, Any],  # reader kwargs: header, delim, names, dtype, hive_partitioning, union_by_name, etc.
     ) -> GataFrame | None:
+        """Read.
 
+        Args:
+            source: TODO describe source.
+            schema: TODO describe schema.
+            format: TODO describe format.
+            pre_limit: TODO describe pre_limit.
+            limit: TODO describe limit.
+            pre_filter: TODO describe pre_filter.
+            filter: TODO describe filter.
+            kwargs: TODO describe kwargs.
+
+        Returns:
+            TODO describe return value.
+
+        """
         self.logger.debug(f"Read {source}")
         rel: GataFrame | None = None
         if source is None:
@@ -782,17 +934,37 @@ class Engine:
 
     @staticmethod
     def get_schema_file(source: str | Path) -> Optional[Path]:
+        """Get schema file.
+
+        Args:
+            source: TODO describe source.
+
+        Returns:
+            TODO describe return value.
+
+        """
         source = Path(source)
         return source.parent / (source.name + ".schema.json")
 
     @staticmethod
     def read_schema(schema_file: str | Path) -> Optional[DataSchema]:
+        """Read schema.
+
+        Args:
+            schema_file: TODO describe schema_file.
+
+        Returns:
+            TODO describe return value.
+
+        """
         schema_file = Path(schema_file)
         if not schema_file.exists():
             return None
         return DataSchema.from_json_file(schema_file.as_posix())
 
     def _strip_helper_params(self, url: str) -> str:
+        # Internal helper: strip helper params.
+        """Internal helper: strip helper params."""
         parsed = urlparse(url)
         qs = parse_qs(parsed.query)
         for k in ("table", "schema", "query", "user", "password", "pk"):
@@ -806,6 +978,8 @@ class Engine:
         crs_target: str | None,
         crs_source: str | None = None,
     ) -> duckdb.DuckDBPyRelation:
+        # Internal helper: rel with geometry and crs.
+        """Internal helper: rel with geometry and crs."""
         if geometry is None:
             return rel
         if crs_source is None:
@@ -830,6 +1004,8 @@ class Engine:
             return rel
 
     def _manage_mode_file(self, mode: str, dest_path: Path):
+        # Internal helper: manage mode file.
+        """Internal helper: manage mode file."""
         if dest_path.exists():
             if mode == "error":
                 raise FileExistsError(f"Destination exists: {dest_path}")
@@ -884,6 +1060,7 @@ class Engine:
         If ``sa_connection`` is provided, use SQLAlchemy inspection; otherwise fall
         back to DuckDB's ``duckdb_tables()`` metadata (current behaviour).
         """
+        # Internal helper: table exists.
         # SQLAlchemy branch (used for external DBs like SQLite/SpatiaLite)
         if sa_connection is not None:
             try:
@@ -925,6 +1102,7 @@ class Engine:
         (used for SQLite/SpatiaLite). Otherwise, the previous DuckDB-based
         behaviour is preserved.
         """
+        # Internal helper: manage mode db.
         # SQLAlchemy branch
         if sa_connection is not None:
             try:
@@ -978,6 +1156,8 @@ class Engine:
             return True
 
     def _get_sequence(self, seq: str | Sequence[str] | None) -> Sequence[str]:
+        # Internal helper: get sequence.
+        """Internal helper: get sequence."""
         if isinstance(seq, str):
             return seq.split(",")
         if seq is None:
@@ -985,6 +1165,8 @@ class Engine:
         return seq
 
     def _get_partition_clause(self, partitionBy: str | Sequence[str] | None) -> str:
+        # Internal helper: get partition clause.
+        """Internal helper: get partition clause."""
         part_cols = self._get_sequence(partitionBy)
         part_clause: str = ""
         if part_cols:
@@ -993,6 +1175,8 @@ class Engine:
         return part_clause
 
     def _get_partition_clause_with_star(self, partitionBy: str | Sequence[str] | None, **kwargs: dict[str, Any]) -> str:
+        # Internal helper: get partition clause with star.
+        """Internal helper: get partition clause with star."""
         partitionBy = self._get_sequence(partitionBy)
         tmp: list[Any] = [v for k, v in kwargs.items() if k.upper() == "PER_THREAD_OUTPUT"]
         if tmp:
@@ -1013,6 +1197,8 @@ class Engine:
     def _get_partition_clause_with_star_gdal(
         self, partitionBy: str | Sequence[str] | None, **kwargs: dict[str, Any]
     ) -> str:
+        # Internal helper: get partition clause with star gdal.
+        """Internal helper: get partition clause with star gdal."""
         partitionBy = self._get_sequence(partitionBy)
         tmp: list[Any] = [v for k, v in kwargs.items() if k.upper() == "PER_THREAD_OUTPUT"]
         if tmp:
@@ -1053,6 +1239,7 @@ class Engine:
         tuple[Path, duckdb.DuckDBPyRelation]
             Cartella corrispondente alla combinazione e relazione filtrata.
         """
+        # Internal helper: iter partitioned relations.
         root = Path(base_path)
 
         partitionBy_parsed: Sequence[str] | None = self._get_sequence(partitionBy)
@@ -1062,6 +1249,8 @@ class Engine:
         part_cols = [c.strip() for c in partitionBy_parsed if c and c.strip()]
 
         def _sql_literal(value: Any) -> str:
+            # Internal helper: sql literal.
+            """Internal helper: sql literal."""
             if value is None:
                 return "NULL"
             if isinstance(value, bool):
@@ -1071,6 +1260,8 @@ class Engine:
             return "'" + str(value).replace("'", "''") + "'"
 
         def _folder_name(col: str, value: Any) -> str:
+            # Internal helper: folder name.
+            """Internal helper: folder name."""
             value_str = "__HIVE_DEFAULT_PARTITION__" if value is None else str(value)
             return f"{col}={value_str}"
 
@@ -1080,6 +1271,8 @@ class Engine:
             current_path: Path,
             remove_partition_cols: bool = True,
         ) -> Generator[tuple[Path, duckdb.DuckDBPyRelation], None, None]:
+            # Internal helper: recurse.
+            """Internal helper: recurse."""
             if not remaining_cols:
                 yield current_path, current_rel
                 return
@@ -1131,6 +1324,8 @@ class Engine:
         hive_partitioning: bool = True,
         **kwargs: dict[str, Any],
     ):
+        # Internal helper: write parquet.
+        """Internal helper: write parquet."""
         fmt = "PARQUET"
         kwargs.setdefault("compression", "ZSTD")  # pyright: ignore[reportArgumentType]
         tmp_view = GataFrame.get_new_alias("rel_")
@@ -1161,6 +1356,8 @@ class Engine:
         hive_partitioning: bool = True,
         **kwargs: dict[str, Any],
     ):
+        # Internal helper: write csv.
+        """Internal helper: write csv."""
         fmt = "CSV"
         tmp_view = GataFrame.get_new_alias("rel_")
         dest_path = Path(destination)
@@ -1192,6 +1389,8 @@ class Engine:
         hive_partitioning: bool = True,
         **kwargs: dict[str, Any],
     ):
+        # Internal helper: write json.
+        """Internal helper: write json."""
         fmt = "JSON"
         tmp_view = GataFrame.get_new_alias("rel_")
         dest_path = Path(destination)
@@ -1239,6 +1438,8 @@ class Engine:
         hive_partitioning: bool = True,
         **kwargs: dict[str, Any],
     ):
+        # Internal helper: write geojson.
+        """Internal helper: write geojson."""
         fmt = "GeoJSON"
         tmp_view = GataFrame.get_new_alias("rel_")
         dest_path = Path(destination)
@@ -1290,6 +1491,8 @@ class Engine:
         hive_partitioning: bool = True,
         **kwargs: dict[str, Any],
     ):
+        # Internal helper: write shp.
+        """Internal helper: write shp."""
         fmt = "Esri Shapefile"
         tmp_view = GataFrame.get_new_alias("rel_")
         dest_path = Path(destination)
@@ -1343,6 +1546,8 @@ class Engine:
         hive_partitioning: bool = True,
         **kwargs: dict[str, Any],
     ):
+        # Internal helper: write gpkg.
+        """Internal helper: write gpkg."""
         fmt = "GPKG"
         tmp_view = GataFrame.get_new_alias("rel_")
         dest_path = Path(destination)
@@ -1400,6 +1605,8 @@ class Engine:
         hive_partitioning: bool = True,
         **kwargs: dict[str, Any],
     ):
+        # Internal helper: write sqlite.
+        """Internal helper: write sqlite."""
         fmt = "SQLite"
         tmp_view = GataFrame.get_new_alias("rel_")
         dest_path = Path(destination)
@@ -1459,6 +1666,8 @@ class Engine:
         crs_target: str | None = None,  # destination CRS (transform geometry if provided)
         **kwargs: dict[str, Any],
     ):
+        # Internal helper: write db sqlite old.
+        """Internal helper: write db sqlite old."""
         self._ensure_sqlite()
         # se c'è una colonna geometrica vogliamo che l'estensione spatial sia caricata
         if geometry is not None and geometry in list(rel.columns):
@@ -1492,6 +1701,12 @@ class Engine:
             raise ValueError(f"Unsupported database scheme for SQLite writer: {db_scheme}")
 
         def create_spatialite_db(db_path: str):
+            """Create spatialite db.
+
+            Args:
+                db_path: TODO describe db_path.
+
+            """
             try:
                 # Remove existing DB if needed (for demo purposes)
                 if os.path.exists(db_path):
@@ -1554,6 +1769,16 @@ class Engine:
         rel_colset = set(rel_cols)
 
         def qident(name: str, cols: set[str] | list[str] | None = None) -> str:
+            """Qident.
+
+            Args:
+                name: TODO describe name.
+                cols: TODO describe cols.
+
+            Returns:
+                TODO describe return value.
+
+            """
             if cols is None:
                 return '"' + str(name).replace('"', '""') + '"'
             if name.strip() in cols:
@@ -1561,6 +1786,15 @@ class Engine:
             return name
 
         def safe_table_suffix(value: Any) -> str:
+            """Safe table suffix.
+
+            Args:
+                value: TODO describe value.
+
+            Returns:
+                TODO describe return value.
+
+            """
             s = str(value)
             return "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in s)
 
@@ -1606,6 +1840,15 @@ class Engine:
         def normalize_index_seq(
             idx: Sequence[str | tuple[str, str]] | str | tuple[str, str] | None,
         ) -> list[str | tuple[str, str]]:
+            """Normalize index seq.
+
+            Args:
+                idx: TODO describe idx.
+
+            Returns:
+                TODO describe return value.
+
+            """
             if idx is None:
                 return []
             if isinstance(idx, str):
@@ -1620,6 +1863,18 @@ class Engine:
             dest: str,
             table: str,
         ) -> list[str]:
+            """Build additional indexes.
+
+            Args:
+                idx_specs: TODO describe idx_specs.
+                rel_colset: TODO describe rel_colset.
+                dest: TODO describe dest.
+                table: TODO describe table.
+
+            Returns:
+                TODO describe return value.
+
+            """
             rel_colset_lower = {c.lower() for c in rel_colset}
             ddls: list[str] = []
             used_names: set[str] = set()
@@ -1693,6 +1948,7 @@ class Engine:
         - scrive i dati con pandas / geopandas;
         - crea eventuali indici tramite SQLAlchemy.
         """
+        # Internal helper: write db sqlite.
 
         self._ensure_sqlite()
         # se c'è una colonna geometrica vogliamo che l'estensione spatial sia caricata
@@ -1729,6 +1985,12 @@ class Engine:
 
         # creazione iniziale del file SpatiaLite (se non esiste)
         def create_spatialite_db(db_path: str):
+            """Create spatialite db.
+
+            Args:
+                db_path: TODO describe db_path.
+
+            """
             try:
                 # Connect to SQLite database
                 conn = sqlite3.connect(db_path)
@@ -1792,6 +2054,16 @@ class Engine:
         rel_colset = set(rel_cols)
 
         def qident(name: str, cols: set[str] | list[str] | None = None) -> str:
+            """Qident.
+
+            Args:
+                name: TODO describe name.
+                cols: TODO describe cols.
+
+            Returns:
+                TODO describe return value.
+
+            """
             if cols is None:
                 return '"' + str(name).replace('"', '""') + '"'
             if name.strip() in cols:
@@ -1799,12 +2071,30 @@ class Engine:
             return name
 
         def safe_table_suffix(value: Any) -> str:
+            """Safe table suffix.
+
+            Args:
+                value: TODO describe value.
+
+            Returns:
+                TODO describe return value.
+
+            """
             s = str(value)
             return "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in s)
 
         def normalize_index_seq(
             idx: Sequence[str | tuple[str, str]] | str | tuple[str, str] | None,
         ) -> list[str | tuple[str, str]]:
+            """Normalize index seq.
+
+            Args:
+                idx: TODO describe idx.
+
+            Returns:
+                TODO describe return value.
+
+            """
             if idx is None:
                 return []
             if isinstance(idx, str):
@@ -1819,6 +2109,18 @@ class Engine:
             dest: str,
             table: str,
         ) -> list[str]:
+            """Build additional indexes.
+
+            Args:
+                idx_specs: TODO describe idx_specs.
+                rel_colset: TODO describe rel_colset.
+                dest: TODO describe dest.
+                table: TODO describe table.
+
+            Returns:
+                TODO describe return value.
+
+            """
             rel_colset_lower = {c.lower() for c in rel_colset}
             ddls: list[str] = []
             used_names: set[str] = set()
@@ -1974,6 +2276,7 @@ class Engine:
             2) ddl_pk: ddl ALTER TABLE ... ADD PRIMARY KEY ...
             3) ddl_indexes: lista ddl CREATE INDEX ...
         """
+        # Internal helper: create table postgresql.
 
         # solo colonne esistenti nella relation
         rel_cols = list(rel.columns)
@@ -1981,6 +2284,16 @@ class Engine:
         rel_colset = set(rel_cols)
 
         def qident(name: str, cols: set[str] | list[str] | None = None) -> str:
+            """Qident.
+
+            Args:
+                name: TODO describe name.
+                cols: TODO describe cols.
+
+            Returns:
+                TODO describe return value.
+
+            """
             if cols is None:
                 return '"' + str(name).replace('"', '""') + '"'
             if name.strip() in cols:
@@ -1988,11 +2301,29 @@ class Engine:
             return name
 
         def qname(*parts: str) -> str:
+            """Qname.
+
+            Args:
+                parts: TODO describe parts.
+
+            Returns:
+                TODO describe return value.
+
+            """
             return ".".join(qident(p, None) for p in parts if p)
 
         def normalize_index_seq(
             idx: Sequence[str | tuple[str, str]] | str | tuple[str, str] | None,
         ) -> list[str | tuple[str, str]]:
+            """Normalize index seq.
+
+            Args:
+                idx: TODO describe idx.
+
+            Returns:
+                TODO describe return value.
+
+            """
             if idx is None:
                 return []
             if isinstance(idx, str):
@@ -2002,6 +2333,15 @@ class Engine:
             return list(idx)
 
         def unique_preserve_order(items: Sequence[str]) -> list[str]:
+            """Unique preserve order.
+
+            Args:
+                items: TODO describe items.
+
+            Returns:
+                TODO describe return value.
+
+            """
             seen: set[str] = set()
             out: list[str] = []
             for x in items:
@@ -2011,6 +2351,15 @@ class Engine:
             return out
 
         def get_nparts_for_level(level: int) -> int | None:
+            """Get nparts for level.
+
+            Args:
+                level: TODO describe level.
+
+            Returns:
+                TODO describe return value.
+
+            """
             if n_partitions is None:
                 return None
             if isinstance(n_partitions, int):
@@ -2023,10 +2372,28 @@ class Engine:
             return int(n_partitions[level])
 
         def safe_table_suffix(value: Any) -> str:
+            """Safe table suffix.
+
+            Args:
+                value: TODO describe value.
+
+            Returns:
+                TODO describe return value.
+
+            """
             s = str(value)
             return "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in s)
 
         def normalize_index_type(index_type: str | None) -> str:
+            """Normalize index type.
+
+            Args:
+                index_type: TODO describe index_type.
+
+            Returns:
+                TODO describe return value.
+
+            """
             if not index_type:
                 return "BTREE"
             return index_type.strip().upper()
@@ -2037,6 +2404,18 @@ class Engine:
             dest: str,
             table: str,
         ) -> list[str]:
+            """Build additional indexes.
+
+            Args:
+                idx_specs: TODO describe idx_specs.
+                rel_colset: TODO describe rel_colset.
+                dest: TODO describe dest.
+                table: TODO describe table.
+
+            Returns:
+                TODO describe return value.
+
+            """
             rel_colset = {c.lower() for c in rel_colset}
             ddls: list[str] = []
             used_names: set[str] = set()
@@ -2221,6 +2600,8 @@ class Engine:
         crs_target: str | None = None,  # destination CRS (transform geometry if provided)
         **kwargs: dict[str, Any],
     ):
+        # Internal helper: write db postgres.
+        """Internal helper: write db postgres."""
         self._ensure_postgres()
         self._ensure_spatial()
         # DuckDB expects parameters as a comma-separated string, while parse_qs returns lists

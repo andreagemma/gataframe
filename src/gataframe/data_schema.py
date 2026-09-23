@@ -23,6 +23,7 @@ def _normalize_duckdb_type(type_str: str) -> str:
            "struct(id int, name string)".
     The result is always returned in a canonical, mostly upper-case form.
     """
+    # Internal helper: normalize duckdb type.
 
     s = type_str.strip()
     if not s:
@@ -203,6 +204,8 @@ class GeneratorSpec(BaseModel):
     @field_validator("type")
     @classmethod
     def _normalize_type(cls, v: FieldType) -> FieldType:
+        # Internal helper: normalize type.
+        """Internal helper: normalize type."""
         if v is None:
             return v
         return _normalize_duckdb_type(v)
@@ -255,6 +258,7 @@ class SchemaField(BaseModel):
         - struct_fields: solo per STRUCT
         - se nullable=False, default deve essere valorizzato
         """
+        # Internal helper: validate type specific options.
 
         t = (self.type or "").upper()
 
@@ -305,6 +309,7 @@ class SchemaField(BaseModel):
         - "map(text, int)"             -> "MAP(VARCHAR, INTEGER)"
         - "struct(id int, name string)"-> "STRUCT(id INTEGER, name VARCHAR)"
         """
+        # Internal helper: normalize type.
 
         if v is None:
             return v
@@ -332,6 +337,8 @@ class AdditionalSchemaField(BaseModel):
 
     @model_validator(mode="after")
     def _validate_type_specific_options(self) -> "AdditionalSchemaField":
+        # Internal helper: validate type specific options.
+        """Internal helper: validate type specific options."""
         t = (self.type or "").upper()
 
         if self.element_type is not None:
@@ -351,6 +358,8 @@ class AdditionalSchemaField(BaseModel):
     @field_validator("type")
     @classmethod
     def _normalize_type(cls, v: FieldType) -> FieldType:
+        # Internal helper: normalize type.
+        """Internal helper: normalize type."""
         if v is None:
             return v
         return _normalize_duckdb_type(v)
@@ -433,6 +442,7 @@ class DataSchema(BaseModel):
     @model_validator(mode="after")
     def _validate_unique_field_names(self) -> "DataSchema":
         """Verifica che non esistano nomi duplicati nei soli `fields`."""
+        # Internal helper: validate unique field names.
         if self.fields is None:
             return self
         if isinstance(self.fields, list):
