@@ -1,23 +1,29 @@
 from __future__ import annotations
 from pathlib import Path
+from typing import TypeAlias
 import os
 import sqlite3
 import pandas as pd
+from pandas import DataFrame
+from enum import Enum
 import geopandas as gpd
+from geopandas import GeoDataFrame
 import logging
 import glob
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode, ParseResult
-from pathlib import Path
 import duckdb
 import tempfile
 from uuid import uuid4
 import threading as th
 from typing import Sequence, Any, Optional, Generator
-
 from .files import clean_folder, remove_path
 from .data_schema import DataSchema
 from .gata_frame import GataFrame
 from .conversion_types import duckdb_type_to_postgres, duckdb_type_to_sqlite
+
+GataSourceType: TypeAlias = (
+    str | Path | DataFrame | GeoDataFrame | GataFrame | dict[str, Any] | list[dict[str, Any]] | None
+)
 
 
 def _is_jupyter() -> bool:
@@ -36,6 +42,47 @@ def _has_ipywidgets() -> bool:
     from importlib.util import find_spec
 
     return find_spec("ipywidgets") is not None
+
+
+class SourceFormatEnum(Enum):
+    CSV = "csv"
+    PARQUET = "parquet"
+    GEOPARQUET = "geoparquet"
+    GEOPACKAGE = "gpkg"
+    SHP = "shp"
+    JSON = "json"
+    GEOJSON = "geojson"
+    SQLITE = "sqlite"
+    DUCKDB = "duckdb"
+
+    @classmethod
+    def parse(cls, value: str) -> SourceFormatEnum:
+        normalized = value.strip().lower()
+        for member in cls:
+            if member.value == normalized:
+                return member
+        raise ValueError(f"Unknown source format: {value}")
+
+
+class SourceFormat:
+    # Canonical format groups plus accepted aliases used for input detection.
+    CSV_alias = {"csv", "txt", "tsv"}
+    PARQUET_alias = {"parquet", "pq"}
+    GEOPARQUET_alias = {"geoparquet", "gpq"}
+    GEOPACKAGE_alias = {"gpkg", "geopackage"}
+    SHP_alias = {"shp", "shapefile"}
+    JSON_alias = {"json"}
+    GEOJSON_alias = {"geojson"}
+    SQLITE_alias = {"sqlite", "sqlite3", "db", "db3"}
+    DUCKDB_alias = {"duckdb"}
+
+    @classmethod
+    def parse(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        for member_name, aliases in cls.__dict__.items():
+            if not member_name.startswith("__") and member_name.endswith("_alias") and normalized in aliases:
+                return member_name.replace("_alias", "").lower()
+        raise ValueError(f"Unknown source format: {value}")
 
 
 class Engine:
@@ -247,23 +294,10 @@ class Engine:
 
     def _guess_format(self, p: Path) -> str:
         ext = p.suffix.lower().lstrip(".").strip()
-        if ext in ("parquet", "pq"):
-            return "parquet"
-        if ext in ("geoparquet", "gpq"):
-            return "geoparquet"
-        elif ext in ("csv", "txt"):
-            return "csv"
-        elif ext in ("json",):
-            return "json"
-        elif ext in ("geojson",):
-            return "geojson"
-        elif ext in ("gpkg", "geopackage"):
-            return "gpkg"
-        elif ext in ("shp", "shapefile"):
-            return "shp"
-        elif ext in ("sqlite", "sqlite3", "db", "db3"):
-            return "sqlite"
-        else:
+        try:
+            # Normalize extensions to canonical reader keys used by `read`.
+            return SourceFormat.parse(ext)
+        except ValueError:
             return ext
 
     def _to_insensitive_pattern_ext(self, ext: str) -> str:
@@ -304,6 +338,21 @@ class Engine:
             params = ""
         return params
 
+    def _read_from_dict(self, source: dict, **kwargs: dict[str, Any]) -> duckdb.DuckDBPyRelation:
+        if not source:
+            raise ValueError("Source dictionary is empty")
+        if self.connection is None:
+            raise ValueError("DuckDB connection is not initialized")
+        return self.connection.from_df(pd.DataFrame.from_dict(source))
+
+    def _read_from_list(self, source: list, **kwargs: dict[str, Any]) -> duckdb.DuckDBPyRelation:
+        if not source:
+            raise ValueError("Source list is empty")
+        if self.connection is None:
+            raise ValueError("DuckDB connection is not initialized")
+        ret = self.connection.from_df(pd.DataFrame(source))
+        return ret
+
     def _read_parquet(self, src_path: str | Path, **kwargs: dict[str, Any]) -> duckdb.DuckDBPyRelation:
         self._ensure_spatial()
         kwargs.pop("file_globs", None)
@@ -315,16 +364,16 @@ class Engine:
                 files: Sequence[str] = self._list_supported_files_recursive(
                     src_path, patterns=["**/*.parquet", "**/*.pq", "**/*.geoparquet"]
                 )
-                rel: duckdb.DuckDBPyRelation = self.connection.read_parquet(
+                rel: duckdb.DuckDBPyRelation = self.connection.read_parquet(  # type: ignore
                     path_or_buffer=files,  # pyright: ignore[reportOptionalMemberAccess]
                     hive_partitioning=True,
-                    **kwargs,
+                    **kwargs,  # type: ignore
                 )  # pyright: ignore[reportArgumentType]
 
                 return rel
             else:
-                rel: duckdb.DuckDBPyRelation = self.connection.read_parquet(
-                    file_glob=src_path.as_posix(),  # pyright: ignore[reportOptionalMemberAccess]
+                rel: duckdb.DuckDBPyRelation = self.connection.read_parquet(  # type: ignore
+                    file_glob=src_path.as_posix(),  # pyright: ignore[reportOptionalMemberAccess] # type: ignore
                     hive_partitioning=True,
                     **kwargs,
                 )  # pyright: ignore[reportArgumentType]
@@ -354,13 +403,13 @@ class Engine:
 
                 return rel
             else:
-                rel: duckdb.DuckDBPyRelation = self.connection.read_csv(
+                rel: duckdb.DuckDBPyRelation = self.connection.read_csv(  # type: ignore
                     str(src_path),  # pyright: ignore[reportOptionalMemberAccess]
-                    **kwargs,
+                    **kwargs,  # type: ignore
                 )  # pyright: ignore[reportArgumentType]
                 return rel
         else:
-            raise FileNotFoundError(f"Parquet source not found: {src_path}")
+            raise FileNotFoundError(f"CSV source not found: {src_path}")
 
     def _read_json(self, src_path: Path, **kwargs: dict[str, Any | str]) -> duckdb.DuckDBPyRelation:
         kwargs.setdefault("union_by_name", True)  # pyright: ignore[reportArgumentType]
@@ -564,7 +613,7 @@ class Engine:
                 self._db_attached[(db_file_key, "")] = attach_alias
 
             if sql_query:
-                settings = self.connection.sql(
+                settings = self.connection.sql(  # type: ignore
                     "SELECT value FROM duckdb_settings() WHERE name = 'search_path';"
                 ).fetchone()  # pyright: ignore[reportOptionalSubscript, reportOptionalMemberAccess]
                 if settings and settings[0]:
@@ -629,7 +678,7 @@ class Engine:
 
     def read(
         self,
-        source: str | Path | pd.DataFrame | GataFrame | None,
+        source: GataSourceType,
         schema: DataSchema | None = None,
         format: str | None = None,
         pre_limit: int | None = None,
@@ -645,7 +694,7 @@ class Engine:
             return None
         assert self.connection is not None, "Database connection is not initialized"
         assert self.engine is not None, "Engine is not initialized"
-        assert isinstance(source, (str, Path, pd.DataFrame, GataFrame, gpd.GeoDataFrame)), (
+        assert isinstance(source, (str, Path, pd.DataFrame, gpd.GeoDataFrame, GataFrame, list, dict)), (
             f"Unsupported source type: {type(source)}"
         )
         # Already a relation
@@ -658,6 +707,12 @@ class Engine:
         elif gpd is not None and isinstance(source, gpd.GeoDataFrame):
             self.logger.debug("Converting GeoDataFrame to DuckDB relation")
             rel = GataFrame(self.connection.from_df(source), self.connection)  # pyright: ignore[reportOptionalMemberAccess]
+        elif isinstance(source, dict):
+            self.logger.debug("Reading from dictionary source")
+            rel = GataFrame(self._read_from_dict(source, **kwargs), self.connection)  # pyright: ignore[reportOptionalMemberAccess]
+        elif isinstance(source, list):
+            self.logger.debug("Reading from list source")
+            rel = GataFrame(self._read_from_list(source, **kwargs), self.connection)  # pyright: ignore[reportOptionalMemberAccess]
         else:
             src_str = str(source)
             src_path = Path(src_str.split("|", 1)[0])  # for gpkg "path|layer"
@@ -678,22 +733,31 @@ class Engine:
                 raise FileNotFoundError(f"Source not found: {src_path}")
             # Directory: efficient multi-file reads where possible
             elif src_path.exists():
-                format = self._guess_format(src_path) if format is None else format.lower().strip()
-                if format in ("parquet",):
+                if format is None:
+                    format = self._guess_format(src_path)
+                else:
+                    format = format.lower().strip()
+                    try:
+                        format = SourceFormat.parse(format)
+                    except ValueError:
+                        pass
+
+                # Route aliases (for example `pq`, `db3`, `geopackage`) to one reader path.
+                if format == SourceFormatEnum.PARQUET.value:
                     rel = GataFrame(self._read_parquet(src_path, **kwargs), self.connection)
-                elif format in ("geoparquet",):
+                elif format == SourceFormatEnum.GEOPARQUET.value:
                     rel = GataFrame(self._read_parquet(src_path, **kwargs), self.connection)
-                elif format in ("csv",):
+                elif format == SourceFormatEnum.CSV.value:
                     rel = GataFrame(self._read_csv(src_path, **kwargs), self.connection)
-                elif format in ("shp",):
+                elif format == SourceFormatEnum.SHP.value:
                     rel = GataFrame(self._read_shp(src_path, **kwargs), self.connection)
-                elif format in ("gpkg"):
+                elif format == SourceFormatEnum.GEOPACKAGE.value:
                     rel = GataFrame(self._read_gpkg(src_str, **kwargs), self.connection)
-                elif format in ("json",):
+                elif format == SourceFormatEnum.JSON.value:
                     rel = GataFrame(self._read_json(src_path, **kwargs), self.connection)
-                elif format in ("geojson",):
+                elif format == SourceFormatEnum.GEOJSON.value:
                     rel = GataFrame(self._read_geojson(src_path, **kwargs), self.connection)
-                elif format in ("sqlite",):
+                elif format == SourceFormatEnum.SQLITE.value:
                     rel = GataFrame(self._read_sqlite(src_path, **kwargs), self.connection)
                 else:
                     raise ValueError(f"Unsupported format: {format}")
@@ -1791,10 +1855,10 @@ class Engine:
             return ddls
 
         # connessione SQLAlchemy verso il file SQLite/SpatiaLite
-        engine: Engine = create_engine(f"sqlite:///{sqlite_file.as_posix()}")  # pyright: ignore[reportUnknownVariableType]
+        engine: Engine = create_engine(f"sqlite:///{sqlite_file.as_posix()}")  # pyright: ignore[reportAssignmentType, reportUnknownVariableType]
 
         # Scrittura all'interno di una transazione
-        with engine.begin() as sa_con:  # pyright: ignore[reportUnknownMemberType]
+        with engine.begin() as sa_con:  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
             # gestisce modalità overwrite/append/error/warning/truncate via SQLAlchemy
             create_table = self._manage_mode_db(
                 mode=mode,

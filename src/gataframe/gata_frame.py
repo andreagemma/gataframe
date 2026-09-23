@@ -9,7 +9,7 @@ import warnings
 import geopandas as gpd
 import pandas as pd
 from .data_schema import DataSchema, SchemaField, GeneratorSpec, AdditionalSchemaField
-from .conversion_types import DUCKDB_TYPE_ALIASES
+from .conversion_types import DUCKDB_TYPE_ALIASES, duckdb_type_to_pandas
 
 
 def _normalize_col_name(col: str) -> str:
@@ -256,6 +256,11 @@ class GataFrame:
     def dtypes(self) -> dict[str, DuckDBPyType]:
         return dict(zip(self._rel.columns, self._rel.types))  # pyright: ignore[reportReturnType]
 
+    @property
+    def pandasDType(self) -> dict[str, str]:
+        """Return best-effort pandas dtype labels for each relation column."""
+        return {name: duckdb_type_to_pandas(str(dtype)) for name, dtype in self.dtypes.items()}
+
     def withColumn(self, cols: str | dict[str, str], expr: Any | None = None, inplace: bool = False) -> GataFrame:
         assert isinstance(cols, (str, dict)), (
             "col must be a string or a dictionary mapping column names with expressions."
@@ -282,7 +287,7 @@ class GataFrame:
             else:
                 return self._create_from_relation(new_df, op=op)
         elif isinstance(cols, str):
-            op = f"withColumn({_n(expr)} as {_n(cols)})"
+            op = f"withColumn({_n(expr)} as {_n(cols)})"  # type: ignore
             new_df = self._rel.project(f"COLUMNS(lambda x: x<>'{_n(cols)}'), {expr} as \"{_n(cols)}\"")
             if inplace:
                 self._rel = new_df
@@ -311,12 +316,12 @@ class GataFrame:
         else:
             cols = {_n(k): _n(v) for k, v in cols.items()}
 
+        op = f"renameColumn({cols})"
         if len(cols) == 0:
             raise ValueError("No columns available to rename.")
         elif len(cols) == 1:
             op = f"renameColumn({list(cols.keys())[0]} -> {list(cols.values())[0]})"
         for old_name in or_cols:
-            op = f"renameColumn({cols} -> {rename})"
             new_name = cols.get(old_name, old_name)
             old_name = old_name
             if new_name == old_name:
@@ -380,7 +385,7 @@ class GataFrame:
             else:
                 return self._create_from_relation(new_df, op=op)
         elif isinstance(cols, str):
-            op = f"replaceColumn({_n(expr)} as {_n(cols)})"
+            op = f"replaceColumn({_n(expr)} as {_n(cols)})"  # type: ignore
             new_df = self._rel.project(f'* REPLACE({expr} as "{_n(cols)}")')
             if inplace:
                 self._rel = new_df
@@ -785,7 +790,6 @@ class GataFrame:
         type_width: int | None = None,
         type_precision: int | None = None,
     ) -> str:
-
         if target_type == current_type:
             return expr
         if target_type == "DATE":
@@ -834,7 +838,7 @@ class GataFrame:
                         # Input naive -> interpreta come se fosse nel timezone specificato
                         parsed = f"TRY_CAST(try_strptime({expr}, '{fmt}') AS TIMESTAMP)"
                         expr = f"timezone('{tz_expr}', {parsed})"
-                    expr = f"TRY_CAST({expr} AS TIMESTAMPTZ)"
+                        expr = f"TRY_CAST({expr} AS TIMESTAMPTZ)"
             return expr
         if target_type in ("DOUBLE", "FLOAT", "DECIMAL"):
             if current_type != "VARCHAR":
@@ -939,7 +943,8 @@ class GataFrame:
         dtypes: dict[str, DuckDBPyType] = self.dtypes
         rel = self._rel
         for name, dtype in dtypes.items():
-            if str(dtype).upper().startswith("GEOMETRY"):
+            norm_dtype = self._type_mapping(dtype)
+            if norm_dtype.startswith("GEOMETRY"):
                 rel = rel.select(f'* REPLACE(st_astext("{name}") AS "{name}")')
         return rel.df()
 
@@ -947,20 +952,26 @@ class GataFrame:
         dtypes: dict[str, DuckDBPyType] = self.dtypes
         rel = self._rel
         for name, dtype in dtypes.items():
-            if str(dtype).upper().startswith("GEOMETRY"):
+            norm_dtype = self._type_mapping(dtype)
+            if norm_dtype.startswith("GEOMETRY"):
                 rel = rel.select(f'* REPLACE(st_astext("{name}") AS "{name}")')
         df = rel.df()
         gdf = gpd.GeoDataFrame(df.drop(columns=[geometry]), geometry=gpd.GeoSeries.from_wkt(df[geometry]), crs=crs)
         return gdf
 
     def toPandasOrGeoPandas(
-        self, geometry: str | None = "geometry", crs: str | None = "EPSG:4326"
+        self,
+        geometry: str | None = "geometry",
+        crs: dict[str, str] | str | None = None,
+        suppress_geometry_default_warnings: bool = False,
+        suppress_crs_not_specified_warnings: bool = False,
     ) -> pd.DataFrame | gpd.GeoDataFrame | None:
         dtypes: dict[str, DuckDBPyType] = self.dtypes
         rel = self._rel
         geometry_founds: list[str] = []
         for name, dtype in dtypes.items():
-            if str(dtype).upper() in ("GEOMETRY",):
+            norm_dtype = self._type_mapping(dtype)
+            if norm_dtype.startswith("GEOMETRY"):
                 rel = rel.select(f'* REPLACE(st_astext("{name}") AS "{name}")')
                 geometry_founds.append(name)
         df = rel.df()
@@ -969,14 +980,38 @@ class GataFrame:
         else:
             if geometry is None:
                 geometry = geometry_founds[0]
-                warnings.warn(f'Geometry column "{geometry}" found. Will use to create GeoDataFrame.')
+                if not suppress_geometry_default_warnings:
+                    warnings.warn(f'Geometry column "{geometry}" found. Will use to create GeoDataFrame.')
             if geometry not in geometry_founds:
-                warnings.warn(f'Geometry column "{geometry}" not found. Will use "{geometry_founds[0]}" instead.')
+                if not suppress_geometry_default_warnings:
+                    warnings.warn(f'Geometry column "{geometry}" not found. Will use "{geometry_founds[0]}" instead.')
                 geometry = geometry_founds[0]
             if crs is None:
                 crs = "EPSG:4326"
-                warnings.warn(f'CRS not specified. Will use "{crs}" as default.')
-            gdf = gpd.GeoDataFrame(df.drop(columns=[geometry]), geometry=gpd.GeoSeries.from_wkt(df[geometry]), crs=crs)
+                if not suppress_crs_not_specified_warnings:
+                    warnings.warn(f'CRS not specified. Will use "{crs}" as default.')
+            if isinstance(crs, str):
+                gdf = gpd.GeoDataFrame(
+                    df.drop(columns=[geometry]),
+                    geometry=gpd.GeoSeries.from_wkt(df[geometry]),
+                    crs=crs,
+                )
+            elif isinstance(crs, dict):
+                if geometry not in df.columns:
+                    raise ValueError(f'Geometry column "{geometry}" not found in DataFrame.')
+                crs_geometry = crs.get(geometry, "EPSG:4326")
+                gdf = gpd.GeoDataFrame(
+                    df.drop(columns=[geometry]),
+                    geometry=gpd.GeoSeries.from_wkt(df[geometry]),
+                    crs=crs_geometry,
+                )
+                for col, crs_value in crs.items():
+                    if col != geometry and col in df.columns:
+                        gdf[col] = gpd.GeoSeries.from_wkt(df[col])
+                        gdf[col].set_crs(crs_value, inplace=True)
+            else:
+                raise ValueError(f"Unsupported CRS type: {type(crs)}")
+
             return gdf
 
     def _norm(self, t: str | None) -> str:
@@ -991,7 +1026,10 @@ class GataFrame:
         if isinstance(schema_type, DuckDBPyType):
             schema_type = str(schema_type)
         t = self._norm(schema_type)
-        t = DUCKDB_TYPE_ALIASES.get(t.lower(), schema_type)
+        t = DUCKDB_TYPE_ALIASES.get(t.lower(), None)
+        if t is None:
+            warnings.warn(f'Unknown schema type "{schema_type}". Using as-is.')
+            t = schema_type
         # fallback: ritorna il tipo così com'è, sperando sia riconosciuto dal DB
         return t
 

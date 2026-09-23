@@ -21,8 +21,21 @@ engine.write(df, destination, mode="overwrite", ...)
 instances, and supported file/database sources into DuckDB relations, then wraps
 them as `GataFrame`.
 
+`Engine.read(...)` also accepts in-memory `dict` and `list[dict]` sources.
+
 Supported file formats include CSV, JSON, Parquet, GeoParquet, GeoJSON,
 GeoPackage, Shapefile, SQLite, and PostgreSQL URLs.
+
+Format aliases accepted by `Engine.read(...)` are normalized automatically:
+
+- CSV: `csv`, `txt`, `tsv`
+- Parquet: `parquet`, `pq`
+- GeoParquet: `geoparquet`, `gpq`
+- GeoPackage: `gpkg`, `geopackage`
+- Shapefile: `shp`, `shapefile`
+- JSON: `json`
+- GeoJSON: `geojson`
+- SQLite files: `sqlite`, `sqlite3`, `db`, `db3`
 
 ## `GataFrame`
 
@@ -40,4 +53,5 @@ Main methods:
 - `createTable(...)`, `createView(...)`, `dropTable(...)`, and `dropView(...)`
 - `union(other)`, `sql(sql)`, and `execute(sql)`
 - `as_type(columns)`
+- `pandasDType`
 - `toPandas()`, `toGeoPandas(...)`, and `toPandasOrGeoPandas(...)`

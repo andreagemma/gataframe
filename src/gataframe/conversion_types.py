@@ -42,16 +42,23 @@ DUCKDB_TYPE_ALIASES: dict[str, str] = {
     # floating point / decimals
     "real": "FLOAT",
     "float4": "FLOAT",
+    "float32": "FLOAT",
     "float": "DOUBLE",
     "double": "DOUBLE",
     "float8": "DOUBLE",
+    "float64": "DOUBLE",
     "decimal": "DECIMAL",
     "numeric": "DECIMAL",
     # temporal
     "date": "DATE",
     "time": "TIME",
+    "timetz": "TIMETZ",
+    "time without time zone": "TIME",
+    "time with time zone": "TIMETZ",
     "timestamp": "TIMESTAMP",
     "timestamptz": "TIMESTAMPTZ",
+    "timestamp without time zone": "TIMESTAMP",
+    "timestamp with time zone": "TIMESTAMPTZ",
     # other common types
     "uuid": "UUID",
     "blob": "BLOB",
@@ -59,6 +66,44 @@ DUCKDB_TYPE_ALIASES: dict[str, str] = {
     "geometry": "GEOMETRY",
     "json": "JSON",
 }
+
+
+def duckdb_type_to_pandas(dtype: str) -> str:
+    """Map a DuckDB type string to a reasonable pandas dtype label."""
+    t = dtype.strip().upper()
+
+    mapping = {
+        "BOOLEAN": "bool",
+        "TINYINT": "Int8",
+        "SMALLINT": "Int16",
+        "INTEGER": "Int32",
+        "INT": "Int32",
+        "BIGINT": "Int64",
+        "HUGEINT": "Int128",
+        "UTINYINT": "UInt8",
+        "USMALLINT": "UInt16",
+        "UINTEGER": "UInt32",
+        "UBIGINT": "UInt64",
+        "UHUGEINT": "UInt128",
+        "REAL": "Float32",
+        "FLOAT": "Float32",
+        "DOUBLE": "Float64",
+        "DECIMAL": "Float64",
+        "NUMERIC": "Float64",
+        "VARCHAR": "str",
+        "CHAR": "str",
+        "BPCHAR": "str",
+        "STRING": "str",
+        "BLOB": "bytes",
+        "DATE": "datetime64[ns]",
+        "TIME": "datetime64[ns]",
+        "TIMESTAMP": "datetime64[ns]",
+        "TIMESTAMPTZ": "datetime64[ns]",
+        "UUID": "str",
+        "JSON": "str",
+    }
+
+    return mapping.get(t, "str")
 
 
 def duckdb_type_to_postgres(dtype: str) -> str:

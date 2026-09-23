@@ -18,7 +18,7 @@ from .data_schema import (
     ShpReaderConfig,
     StructField,
 )
-from .engine import Engine
+from .engine import Engine, SourceFormatEnum, GataSourceType
 from .gata_frame import GFDataType, GataFrame
 
 __all__ = [
@@ -28,7 +28,9 @@ __all__ = [
     "DataSchema",
     "GataFrame",
     "GFDataType",
+    "GataSourceType",
     "Engine",
+    "SourceFormatEnum",
     "FieldMetadata",
     "GeneratorSpec",
     "GeoParquetReaderConfig",

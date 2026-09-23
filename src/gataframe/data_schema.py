@@ -222,7 +222,7 @@ class SchemaField(BaseModel):
     type_precision: int | None = None
     # Campi opzionali usati nell'esempio
     skip: bool = False
-    format: str | list[str] | None = None
+    format: str | None = None
     tz: str | None = None
     decimal_sep: str | None = None
     thousand_sep: str | None = None

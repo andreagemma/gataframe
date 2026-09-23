@@ -93,9 +93,23 @@ engine.write(gf, "out.parquet", mode="overwrite")
 engine.close()
 ```
 
+`Engine.read(...)` also accepts in-memory dictionary and list-of-dictionaries
+sources, converting them to DuckDB relations through pandas.
+
 Supported readers and writers are inferred from file extensions where possible:
 CSV, JSON, Parquet, GeoParquet, GeoJSON, GeoPackage, Shapefile, SQLite, and
 PostgreSQL connection URLs.
+
+Reader format aliases are also supported and normalized automatically:
+
+- CSV: `csv`, `txt`, `tsv`
+- Parquet: `parquet`, `pq`
+- GeoParquet: `geoparquet`, `gpq`
+- GeoPackage: `gpkg`, `geopackage`
+- Shapefile: `shp`, `shapefile`
+- JSON: `json`
+- GeoJSON: `geojson`
+- SQLite files: `sqlite`, `sqlite3`, `db`, `db3`
 
 DuckDB extensions are loaded only when requested by the caller or needed by a
 specific geospatial/database operation.
@@ -110,6 +124,7 @@ specific geospatial/database operation.
 - `Engine.write(df, destination, mode="overwrite", ...)`
 - `GataFrame.withColumn(...)`, `replaceColumn(...)`, `renameColumn(...)`
 - `GataFrame.select(...)`, `filter(...)`, `limit(...)`, `union(...)`
+- `GataFrame.pandasDType`
 - `GataFrame.toPandas()`, `toGeoPandas(...)`, and `toPandasOrGeoPandas(...)`
 
 ## Development

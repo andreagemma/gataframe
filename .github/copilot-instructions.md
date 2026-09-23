@@ -73,3 +73,20 @@ Based on dependencies declared in `pyproject.toml`:
 
 - Do not run destructive git history operations.
 - If requirements are ambiguous, ask for clarification before broad refactors.
+
+## Complete Update/Review/Fix Requests
+
+When the user asks for a complete update, review, or fix workflow:
+
+- Start by comparing local changes with git (`git status`, `git diff`) and review only modified areas.
+- Improve or adjust comments/docstrings in modified code when unclear or outdated.
+- Update tests for behavioral changes and add focused new tests where coverage is missing.
+- Update documentation (`README.md`, `docs/`) to reflect modified behavior/API.
+- If new libraries are introduced, update:
+  - `pyproject.toml` dependencies
+  - `licenses/third_party/packages/<package>/` license artifacts
+  - `licenses/third_party/summary.tsv`
+  - `THIRD_PARTY_NOTICES.md`
+  - `MANIFEST.in` entries for licensing artifacts
+- Verify quality in this order: `ruff check .`, `ruff format --check .`, `mypy`, then `pytest -q`.
+- Compare package version with `origin/main`; if equal and user requested full update/review/fix, bump patch version by one and document it in `CHANGELOG.md`.
