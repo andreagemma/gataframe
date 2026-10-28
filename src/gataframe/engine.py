@@ -760,9 +760,13 @@ class Engine:
                 self._db_attached[(db_file_key, "")] = attach_alias
 
             if sql_query:
-                settings = self.connection.sql(  # type: ignore
-                    "SELECT value FROM duckdb_settings() WHERE name = 'search_path';"
-                ).limit(1).fetchall()  # pyright: ignore[reportOptionalSubscript, reportOptionalMemberAccess]
+                settings = (
+                    self.connection.sql(  # type: ignore
+                        "SELECT value FROM duckdb_settings() WHERE name = 'search_path';"
+                    )
+                    .limit(1)
+                    .fetchall()
+                )  # pyright: ignore[reportOptionalSubscript, reportOptionalMemberAccess]
                 if settings and settings[0] and settings[0][0]:
                     old_search_path: str | None = settings[0][0]
                 else:
@@ -1099,8 +1103,9 @@ class Engine:
         # Default DuckDB-based implementation
         if self.connection is None:
             raise Exception("Connection required")
-        ret = self.connection.execute(
-            """
+        ret = (
+            self.connection.execute(
+                """
             select exists (
                 select 1
                 from duckdb_tables()
@@ -1110,8 +1115,11 @@ class Engine:
                 and table_name not in ('SpatialIndex', 'ElementaryGeometries')
             )
         """,
-            [database, schema, table],
-        ).limit(1).fetchall()
+                [database, schema, table],
+            )
+            .limit(1)
+            .fetchall()
+        )
         if ret and ret[0]:
             return ret[0][0]
         else:
