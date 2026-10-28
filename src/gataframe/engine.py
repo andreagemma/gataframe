@@ -199,8 +199,8 @@ class Engine:
             self.logger.debug(f"DuckDB setting: {row['name']} = {row['value']} ({row['scope']})")
         par = self.connection.sql("SELECT current_setting('threads')")
         if par:
-            row = par.fetchone()
-            Engine.parallelism = row[0] if row else 1
+            row = par.limit(1).fetchall()
+            Engine.parallelism = row[0][0] if row and row[0] else 1
 
         def fn_clean() -> None:
             """Fn clean.
@@ -762,9 +762,9 @@ class Engine:
             if sql_query:
                 settings = self.connection.sql(  # type: ignore
                     "SELECT value FROM duckdb_settings() WHERE name = 'search_path';"
-                ).fetchone()  # pyright: ignore[reportOptionalSubscript, reportOptionalMemberAccess]
-                if settings and settings[0]:
-                    old_search_path: str | None = settings[0]
+                ).limit(1).fetchall()  # pyright: ignore[reportOptionalSubscript, reportOptionalMemberAccess]
+                if settings and settings[0] and settings[0][0]:
+                    old_search_path: str | None = settings[0][0]
                 else:
                     old_search_path: str | None = None
                 try:
@@ -1111,9 +1111,9 @@ class Engine:
             )
         """,
             [database, schema, table],
-        ).fetchone()
-        if ret:
-            return ret[0]
+        ).limit(1).fetchall()
+        if ret and ret[0]:
+            return ret[0][0]
         else:
             raise Exception("Error checking table existence")
 
