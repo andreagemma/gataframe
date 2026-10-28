@@ -78,6 +78,9 @@ Common methods include:
 - `createTable(...)`, `createView(...)`, `dropTable(...)`, and `dropView(...)`
 - `toPandas()`, `toGeoPandas(...)`, and `toPandasOrGeoPandas(...)`
 
+`withColumn({...})` accepts dictionary expressions that can safely reference
+existing columns by name (for example `{"copy_value": "value"}`).
+
 ## Engine
 
 `Engine` owns the DuckDB connection and handles input/output.
@@ -95,6 +98,9 @@ engine.close()
 
 `Engine.read(...)` also accepts in-memory dictionary and list-of-dictionaries
 sources, converting them to DuckDB relations through pandas.
+
+`Engine.create_function(...)` registers Python scalar functions in DuckDB with
+explicit parameter and return types.
 
 Supported readers and writers are inferred from file extensions where possible:
 CSV, JSON, Parquet, GeoParquet, GeoJSON, GeoPackage, Shapefile, SQLite, and
@@ -169,4 +175,5 @@ content.
 
 ## License
 
-GataFrame is distributed under the MIT License. See [LICENSE](LICENSE).
+GataFrame is distributed under the MIT License. See [LICENSE](LICENSE) and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

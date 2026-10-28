@@ -1,8 +1,8 @@
 import re
 
-
 DUCKDB_TYPE_ALIASES: dict[str, str] = {
     # string-like
+    "NULL": "VARCHAR",
     "string": "VARCHAR",
     "str": "VARCHAR",
     "varchar": "VARCHAR",
@@ -68,6 +68,37 @@ DUCKDB_TYPE_ALIASES: dict[str, str] = {
 }
 
 
+def pandas_type_to_duckdb(dtype: str) -> str:
+    """Map a pandas dtype label to an equivalent DuckDB type.
+
+    Args:
+        dtype: pandas dtype label.
+
+    Returns:
+        Canonical DuckDB type name.
+    """
+    t = dtype.strip().lower()
+
+    mapping = {
+        "bool": "BOOLEAN",
+        "int8": "TINYINT",
+        "int16": "SMALLINT",
+        "int32": "INTEGER",
+        "int64": "BIGINT",
+        "uint8": "UTINYINT",
+        "uint16": "USMALLINT",
+        "uint32": "UINTEGER",
+        "uint64": "UBIGINT",
+        "float32": "FLOAT",
+        "float64": "DOUBLE",
+        "str": "VARCHAR",
+        "bytes": "BLOB",
+        "datetime64[ns]": "TIMESTAMP",
+    }
+
+    return mapping.get(t, "VARCHAR")
+
+
 def duckdb_type_to_pandas(dtype: str) -> str:
     """Map a DuckDB type string to a reasonable pandas dtype label."""
     t = dtype.strip().upper()
@@ -107,14 +138,13 @@ def duckdb_type_to_pandas(dtype: str) -> str:
 
 
 def duckdb_type_to_postgres(dtype: str) -> str:
-    """Duckdb type to postgres.
+    """Map a DuckDB type string to a PostgreSQL type string.
 
     Args:
-        dtype: TODO describe dtype.
+        dtype: DuckDB type label.
 
     Returns:
-        TODO describe return value.
-
+        Best-effort PostgreSQL type for DDL generation.
     """
     t = dtype.strip().upper()
 
@@ -188,9 +218,13 @@ def duckdb_type_to_postgres(dtype: str) -> str:
 
 
 def duckdb_type_to_sqlite(dtype: str) -> str:
-    """
-    Mappa un tipo DuckDB a un tipo SQLite.
-    Nota: SQLite usa type affinity, quindi questa è una mappatura pratica.
+    """Map a DuckDB type string to a SQLite affinity type.
+
+    Args:
+        dtype: DuckDB type label.
+
+    Returns:
+        SQLite type affinity suitable for DDL generation.
     """
     t = dtype.strip().upper()
 

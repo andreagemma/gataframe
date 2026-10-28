@@ -15,6 +15,7 @@ basic dataframe work does not try to install DuckDB extensions.
 Engine.connect(...)
 engine.read(source, format=None, pre_limit=None, limit=None, ...)
 engine.write(df, destination, mode="overwrite", ...)
+engine.create_function(name, function, parameters, return_type, null_handling="special")
 ```
 
 `Engine` owns the DuckDB connection. It reads Pandas dataframes, `GataFrame`
@@ -37,6 +38,9 @@ Format aliases accepted by `Engine.read(...)` are normalized automatically:
 - GeoJSON: `geojson`
 - SQLite files: `sqlite`, `sqlite3`, `db`, `db3`
 
+`Engine.create_function(...)` registers Python scalar functions with explicit
+DuckDB parameter and return types.
+
 ## `GataFrame`
 
 ```python
@@ -55,3 +59,6 @@ Main methods:
 - `as_type(columns)`
 - `pandasDType`
 - `toPandas()`, `toGeoPandas(...)`, and `toPandasOrGeoPandas(...)`
+
+When `withColumn(...)` receives a dictionary, expressions that exactly match an
+existing column name are treated as column references.

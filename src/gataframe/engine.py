@@ -15,11 +15,12 @@ import duckdb
 import tempfile
 from uuid import uuid4
 import threading as th
-from typing import Sequence, Any, Optional, Generator
+from typing import Sequence, Any, Optional, Generator, Callable
 from .files import clean_folder, remove_path
 from .data_schema import DataSchema
 from .gata_frame import GataFrame
 from .conversion_types import duckdb_type_to_postgres, duckdb_type_to_sqlite
+from duckdb.sqltypes import DuckDBPyType
 
 GataSourceType: TypeAlias = (
     str | Path | DataFrame | GeoDataFrame | GataFrame | dict[str, Any] | list[dict[str, Any]] | None
@@ -52,7 +53,7 @@ class SourceFormatEnum(Enum):
     CSV = "csv"
     PARQUET = "parquet"
     GEOPARQUET = "geoparquet"
-    GEOPACKAGE = "gpkg"
+    GEOPACKAGE = "geopackage"
     SHP = "shp"
     JSON = "json"
     GEOJSON = "geojson"
@@ -61,14 +62,13 @@ class SourceFormatEnum(Enum):
 
     @classmethod
     def parse(cls, value: str) -> SourceFormatEnum:
-        """Parse.
+        """Parse a canonical source format string.
 
         Args:
-            value: TODO describe value.
+            value: Format label to parse.
 
         Returns:
-            TODO describe return value.
-
+            Matching source format enum member.
         """
         normalized = value.strip().lower()
         for member in cls:
@@ -91,14 +91,13 @@ class SourceFormat:
 
     @classmethod
     def parse(cls, value: str) -> str:
-        """Parse.
+        """Parse a source format alias and return the canonical key.
 
         Args:
-            value: TODO describe value.
+            value: File extension or format alias.
 
         Returns:
-            TODO describe return value.
-
+            Canonical lower-case format key used by readers and writers.
         """
         normalized = value.strip().lower()
         for member_name, aliases in cls.__dict__.items():
@@ -197,7 +196,7 @@ class Engine:
             )
         ).df()
         for _, row in df_vars.iterrows():
-            self.logger.info(f"DuckDB setting: {row['name']} = {row['value']} ({row['scope']})")
+            self.logger.debug(f"DuckDB setting: {row['name']} = {row['value']} ({row['scope']})")
         par = self.connection.sql("SELECT current_setting('threads')")
         if par:
             row = par.fetchone()
@@ -220,7 +219,7 @@ class Engine:
                 n_jobs=Engine.parallelism,
             )
             if removed_files:
-                self.logger.info(f"Cleaned temp folder: Removed {removed_files} files from '{temp_folder}'")
+                self.logger.debug(f"Cleaned temp folder: Removed {removed_files} files from '{temp_folder}'")
 
         th.Thread(target=fn_clean, daemon=True).start()
         self.engine = self
@@ -287,6 +286,35 @@ class Engine:
         # Internal helper: ensure encodings.
         """Internal helper: ensure encodings."""
         self._ensure_extensions(("encodings",))
+
+    def create_function(
+        self,
+        name: str,
+        function: Callable,
+        parameters: list[DuckDBPyType | str],
+        return_type: DuckDBPyType | str,
+        null_handling: str | None = "special",
+    ) -> None:
+        """Register a scalar Python function in the active DuckDB connection.
+
+        Args:
+            name: SQL function name.
+            function: Python callable implementing the function.
+            parameters: DuckDB parameter types.
+            return_type: DuckDB return type.
+            null_handling: DuckDB null handling policy.
+        """
+        if self.connection is None:
+            raise ValueError("No active connection to create function.")
+        parameters = [DuckDBPyType(p) if isinstance(p, str) else p for p in parameters]
+        return_type = DuckDBPyType(return_type) if isinstance(return_type, str) else return_type
+        self.connection.create_function(
+            name,
+            function,
+            parameters,
+            return_type,
+            null_handling=null_handling,
+        )  # pyright: ignore[reportCallIssue, reportArgumentType]
 
     @staticmethod
     def connect(
@@ -989,16 +1017,12 @@ class Engine:
 
         self._ensure_spatial()
 
-        crs_source = crs_source.strip().upper() or "OGC:CRS84"
-        crs_target = crs_target.strip().upper() or "OGC:CRS84"
-        if crs_source == "EPSG:4326":
-            crs_source = "OGC:CRS84"
-        if crs_target == "EPSG:4326":
-            crs_target = "OGC:CRS84"
+        crs_source = crs_source.strip().upper() or "OGC:4326"
+        crs_target = crs_target.strip().upper() or "OGC:4326"
         # if geometry already has SRID, transform using (geom, 'src','dst') pipeline as you used
         if crs_source != crs_target:
             return rel.project(f"""* REPLACE (
-                    ST_Transform({geometry}, '{crs_source}', '{crs_target}') AS {geometry}
+                    ST_Transform({geometry}, '{crs_source}', '{crs_target}', always_xy := true) AS {geometry}
                 )""")
         else:
             return rel
@@ -2681,7 +2705,6 @@ class Engine:
         geometry: str | None = "geometry",
         crs_source: str | None = None,  # source CRS for transform pipeline (optional)
         crs_target: str | None = None,  # destination CRS (transform geometry if provided)
-        chunk_size: int | None = None,
         hive_partitioning: bool = True,
         format: str | None = None,
         **kwargs: dict[str, Any],  # writer kwargs (parquet options, compression, etc.) / db options
@@ -2698,11 +2721,10 @@ class Engine:
           - if simulate_hive=False: writes a single file without partitioning.
           - if n_partitions is set and hive partitioning is off, writes N part files.
         """
-        print(f"Write {destination}")
         mode = (mode or "overwrite").lower().strip()
         dest_str: str = str(destination)
         dest_path: Path = Path(dest_str.split("|", 1)[0])
-
+        self.logger.debug(f"Write {dest_str} ({mode})")
         assert isinstance(df, (pd.DataFrame, gpd.GeoDataFrame, GataFrame)), f"Unsupported source type: {type(df)}"
 
         # ensure relation

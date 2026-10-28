@@ -1,6 +1,9 @@
 import pandas as pd
 
 from gataframe import GataFrame, connect
+from gataframe.apy import create_db_string_connection
+from gataframe.conversion_types import pandas_type_to_duckdb
+from gataframe.engine import SourceFormat
 
 
 def test_engine_reads_pandas_dataframe() -> None:
@@ -62,3 +65,50 @@ def test_pandas_dtype_mapping_is_exposed() -> None:
         assert pandas_types["name"] == "str"
     finally:
         engine.close()
+
+
+def test_with_column_dict_can_reference_existing_columns() -> None:
+    engine = connect(extensions=None)
+    try:
+        gf = engine.read(pd.DataFrame({"id": [1, 2], "value": [10, 20]}))
+        assert gf is not None
+
+        updated = gf.withColumn({"same_as_value": "value"}).toPandas()
+        assert updated["same_as_value"].tolist() == [10, 20]
+    finally:
+        engine.close()
+
+
+def test_as_type_handles_empty_relations() -> None:
+    engine = connect(extensions=None)
+    try:
+        gf = engine.read(pd.DataFrame({"id": [], "value": []}))
+        assert gf is not None
+        casted = gf.as_type({"id": "INTEGER"})
+
+        assert isinstance(casted, GataFrame)
+        assert casted.shape == (0, 2)
+    finally:
+        engine.close()
+
+
+def test_format_alias_and_type_helpers() -> None:
+    assert SourceFormat.parse("gpkg") == "geopackage"
+    assert SourceFormat.parse("pq") == "parquet"
+    assert pandas_type_to_duckdb("int64") == "BIGINT"
+    assert pandas_type_to_duckdb("datetime64[ns]") == "TIMESTAMP"
+
+
+def test_create_db_string_connection_helper() -> None:
+    conn = create_db_string_connection(
+        db_type="postgresql",
+        user="u",
+        password="p",
+        host="h",
+        port=5433,
+        dbname="db",
+        schema="s",
+        table="t",
+    )
+
+    assert conn == "postgresql://u:p@h:5433/db?schema=s&table=t"

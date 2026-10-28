@@ -2,9 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.1.6 - Unreleased
 
-- Bumped package/build version from `0.1.4` to `0.1.5`.
+- Added `Engine.create_function(...)` to register Python scalar functions with typed
+  DuckDB signatures.
+- Preserved `chunk_size` compatibility in the package-level `write(...)` helper.
+- Improved column expression handling in `GataFrame.withColumn(...)` when dictionary
+  expressions reference existing columns.
+- Fixed `GataFrame.as_type(...)` and `toPandasOrGeoPandas(...)` behavior on empty
+  relations.
+- Updated source-format canonical naming and CRS transform behavior in `Engine`.
+- Refreshed third-party license inventory metadata.
+- Bumped package/build version from `0.1.5` to `0.1.6`.
+
+## 0.1.5
 
 ## 0.1.3 - 2026-09-08
 
@@ -18,7 +29,7 @@ All notable changes to this project will be documented in this file.
   - `release.yml`
 - Bumped package/build version from `0.1.2` to `0.1.3`.
 
-## Unreleased
+## 0.1.4
 
 - Added repository Copilot instructions in `.github/copilot-instructions.md` aligned with project governance for versioning, docs, changelog, manifest, and licensing updates.
 - Added third-party licensing artifacts generated from dependencies declared in `pyproject.toml`: `THIRD_PARTY_NOTICES.md`, `licenses/third_party/summary.tsv`, and archived package license files under `licenses/third_party/packages/`.
@@ -37,4 +48,3 @@ All notable changes to this project will be documented in this file.
 - Fixed valid `GataFrame` column operations that were rejected by overly broad
   assertion checks.
 - Removed the serializer helper from the public package and documentation.
-

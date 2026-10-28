@@ -17,7 +17,7 @@ def read(
     limit: int | None = None,
     pre_filter: str | None = None,
     filter: str | None = None,
-    **kwargs: dict[str, Any],  # reader kwargs: header, delim, names, dtype, hive_partitioning, union_by_name, etc.
+    **kwargs: Any,  # reader kwargs: header, delim, names, dtype, hive_partitioning, union_by_name, etc.
 ) -> GataFrame | None:
     """Read a source through an :class:`Engine` and return a :class:`GataFrame`."""
     if engine is None:
@@ -49,9 +49,30 @@ def write(
     chunk_size: int | None = None,
     hive_partitioning: bool = True,
     format: str | None = None,
-    **kwargs: dict[str, Any],  # writer kwargs (parquet options, compression, etc.) / db options
+    **kwargs: Any,  # writer kwargs (parquet options, compression, etc.) / db options
 ) -> None:
-    """Write a dataframe-like object through an :class:`Engine`."""
+    """Write a dataframe-like object through an :class:`Engine`.
+
+    Args:
+        engine: Destination engine instance.
+        df: Input dataframe-like object.
+        destination: File path or database URL destination.
+        mode: Write mode strategy.
+        partitionBy: Optional partition columns.
+        pk: Optional primary key columns for database writes.
+        index: Optional index specifications for database writes.
+        n_partitions: Optional output partition count for file writes.
+        geometry: Geometry column name for geospatial writes.
+        crs_source: Source CRS used for transformations.
+        crs_target: Target CRS used for transformations.
+        chunk_size: Optional chunk size preserved for compatibility.
+        hive_partitioning: Whether to use Hive-style partitioning for files.
+        format: Explicit destination format override.
+        **kwargs: Extra writer options forwarded to :meth:`Engine.write`.
+    """
+    extra_kwargs: dict[str, Any] = dict(kwargs)
+    if chunk_size is not None:
+        extra_kwargs.setdefault("chunk_size", chunk_size)
     return engine.write(
         df=df,
         destination=destination,
@@ -63,10 +84,9 @@ def write(
         geometry=geometry,
         crs_source=crs_source,
         crs_target=crs_target,
-        chunk_size=chunk_size,
         hive_partitioning=hive_partitioning,
         format=format,
-        **kwargs,
+        **extra_kwargs,
     )
 
 
@@ -76,7 +96,7 @@ def connect(
     options: dict[str, str | int | float | bool] | None = None,
     file_based: bool = False,
     file: str | Path | None = None,
-    **kwargs: dict[str, Any],
+    **kwargs: Any,
 ) -> Engine:
     """Create a configured :class:`Engine` instance."""
     return Engine.connect(
@@ -99,7 +119,21 @@ def create_db_string_connection(
     schema: str = "public",
     table: str = "",
 ) -> str:
-    """Create a database URL with schema and table query parameters."""
+    """Create a database URL with schema and table query parameters.
+
+    Args:
+        db_type: Database scheme, currently ``postgresql`` or ``postgres``.
+        user: Database user name.
+        password: Database password.
+        host: Database host.
+        port: Database port.
+        dbname: Database name.
+        schema: Optional schema query parameter.
+        table: Optional table query parameter.
+
+    Returns:
+        Connection URL with optional schema and table query parameters.
+    """
     return Engine.create_db_string_connection(
         db_type=db_type,
         user=user,

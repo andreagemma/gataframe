@@ -451,10 +451,15 @@ class GataFrame:
             assert expr is None, "expr must not be provided when col is a dictionary."
 
         if isinstance(cols, dict):
-            for k, v in cols.items():
-                assert isinstance(k, str) and isinstance(v, str), (
+            or_cols = set(self.columns)
+
+            for column_name in cols:
+                ex = cols[column_name]
+                assert isinstance(column_name, str) and isinstance(ex, str), (
                     "All keys and values in the col dictionary must be strings."
                 )
+                if ex in or_cols:
+                    cols[column_name] = f'"{_n(ex)}"'
             expr_str: str = ", ".join([f'{v} as "{_n(k)}"' for k, v in cols.items()])
             set_of_cols_str = ", ".join([f"'{_n(k)}'" for k in cols.keys()])
             op = f"withColumn({expr_str})"
@@ -1298,6 +1303,8 @@ class GataFrame:
             TODO describe return value.
 
         """
+        if self.empty:
+            return self if inplace else self._create_from_relation(self._rel, op="as_type({})")
         if not columns:
             return self if inplace else self._create_from_relation(self._rel, op="as_type({})")
 
@@ -1403,11 +1410,12 @@ class GataFrame:
         dtypes: dict[str, DuckDBPyType] = self.dtypes
         rel = self._rel
         geometry_founds: list[str] = []
-        for name, dtype in dtypes.items():
-            norm_dtype = self._type_mapping(dtype)
-            if norm_dtype.startswith("GEOMETRY"):
-                rel = rel.select(f'* REPLACE(st_astext("{name}") AS "{name}")')
-                geometry_founds.append(name)
+        if not self.empty:
+            for name, dtype in dtypes.items():
+                norm_dtype = self._type_mapping(dtype)
+                if norm_dtype.startswith("GEOMETRY"):
+                    rel = rel.select(f'* REPLACE(st_astext("{name}") AS "{name}")')
+                    geometry_founds.append(name)
         df = rel.df()
         if not geometry_founds:
             return df
@@ -1453,7 +1461,12 @@ class GataFrame:
         """Internal helper: norm."""
         if t is None:
             return ""
-        return t.strip().upper()
+        t = t.strip().upper()
+        if t.startswith("VARCHAR"):
+            return "VARCHAR"
+        if t.startswith("GEOMETRY"):
+            return "GEOMETRY"
+        return t
 
     def _type_mapping(self, schema_type: str | DuckDBPyType | None) -> str:
         # mappa tipi da schema a tipi SQL standard (per il cast)
