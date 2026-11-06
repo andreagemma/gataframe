@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.8
+
+- Fix error with duckdb>2
+- Bumped package/build version from `0.1.6` to `0.1.8`.
+  
 ## 0.1.6 - Unreleased
 
 - Added `Engine.create_function(...)` to register Python scalar functions with typed

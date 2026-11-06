@@ -227,11 +227,12 @@ class Engine:
         self._ensure_extensions(extensions)
         self._db_attached: dict[tuple[str, str], str] = {}  # (alias, schema) -> file/url
 
-    def _ensure_extensions(self, extensions: tuple[str | tuple[str, str], ...] | None):
+    def _ensure_extensions(self, extensions: tuple[str | tuple[str, str], ...] | None) -> bool:
         # Internal helper: ensure extensions.
         """Internal helper: ensure extensions."""
+        ret = False
         if extensions is None:
-            return
+            return ret
         for extension in extensions:
             if extension in self.loaded_extensions:
                 continue
@@ -256,6 +257,8 @@ class Engine:
                 raise RuntimeError(f"Failed to load extension '{extension}': {str(e)}") from e
             else:
                 self.loaded_extensions[extension] = True
+                ret = True
+        return ret
 
     def _ensure_postgres(self):
         # Internal helper: ensure postgres.
@@ -270,7 +273,8 @@ class Engine:
     def _ensure_spatial(self):
         # Internal helper: ensure spatial.
         """Internal helper: ensure spatial."""
-        self._ensure_extensions(("spatial",))
+        if self._ensure_extensions(("spatial",)):
+            self.connection.execute("SET SESSION geometry_always_xy = true;")
 
     def _ensure_sqlite_scanner(self):
         # Internal helper: ensure sqlite scanner.
