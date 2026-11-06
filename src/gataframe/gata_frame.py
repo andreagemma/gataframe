@@ -463,7 +463,10 @@ class GataFrame:
             expr_str: str = ", ".join([f'{v} as "{_n(k)}"' for k, v in cols.items()])
             set_of_cols_str = ", ".join([f"'{_n(k)}'" for k in cols.keys()])
             op = f"withColumn({expr_str})"
-            new_df = self._rel.project(f"COLUMNS(lambda x: x not in [{set_of_cols_str}]), {expr_str}")
+            if set(or_cols)-set(cols.keys()):
+                new_df = self._rel.project(f"COLUMNS(lambda x: x not in [{set_of_cols_str}]), {expr_str}")
+            else:
+                new_df = self._rel.project(f"{expr_str}")
             if inplace:
                 self._rel = new_df
                 self._reset()
@@ -472,8 +475,12 @@ class GataFrame:
             else:
                 return self._create_from_relation(new_df, op=op)
         elif isinstance(cols, str):
-            op = f"withColumn({_n(expr)} as {_n(cols)})"  # type: ignore
-            new_df = self._rel.project(f"COLUMNS(lambda x: x<>'{_n(cols)}'), {expr} as \"{_n(cols)}\"")
+            op = f"withColumn({_n(expr)} as {_n(cols)})" 
+            or_cols = set(_n(c) for c in self.columns)
+            if (len(or_cols)==1 and _n(cols) in or_cols) or len(or_cols) == 0:
+                new_df = self._rel.project(f"{expr} as \"{_n(cols)}\"")
+            else:
+                new_df = self._rel.project(f"COLUMNS(lambda x: x<>'{_n(cols)}'), {expr} as \"{_n(cols)}\"")
             if inplace:
                 self._rel = new_df
                 self._reset()
