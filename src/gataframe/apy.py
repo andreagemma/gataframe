@@ -4,7 +4,7 @@ from .data_schema import DataSchema
 import pandas as pd
 import geopandas as gpd
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Sequence, Literal
 import logging
 
 
@@ -38,7 +38,7 @@ def write(
     engine: Engine,
     df: GataFrame | pd.DataFrame | gpd.GeoDataFrame,
     destination: str | Path,
-    mode: str = "overwrite",  # overwrite, append, error, truncate (db), ignore, warning
+    mode: Literal["overwrite", "append", "error", "truncate", "ignore", "warning"] = "overwrite",
     partitionBy: str | Sequence[str] | None = None,
     pk: str | Sequence[str] | None = None,
     index: str | Sequence[str] | Sequence[str | tuple[str, str]] | None = None,
