@@ -12,7 +12,7 @@ from .data_schema import DataSchema, SchemaField, GeneratorSpec, AdditionalSchem
 from .conversion_types import DUCKDB_TYPE_ALIASES, duckdb_type_to_pandas
 
 
-def _normalize_col_name(col: str, strips=['"',"'"]) -> str:
+def _normalize_col_name(col: str, strips=['"', "'"]) -> str:
     # Internal helper: normalize col name.
     """Internal helper: normalize col name."""
     ret = col.strip()
@@ -77,9 +77,7 @@ class GataFrame:
 
     GataFramesStatus: dict[str, dict[str, Any]] = {}
 
-    def __new__(
-        cls, df: DuckDBPyRelation | GataFrame, *args: Any, **kwargs: Any
-    ) -> GataFrame:
+    def __new__(cls, df: DuckDBPyRelation | GataFrame, *args: Any, **kwargs: Any) -> GataFrame:
         """Create a wrapper, reusing ``df`` when it is already a GataFrame.
 
         Args:
@@ -401,7 +399,7 @@ class GataFrame:
         """
         assert len(new_columns) == len(self._rel.columns), "Number of new columns must match existing columns."
         cols = self.columns
-        d = {c: _n(new_columns[i]) for i,c in enumerate(cols)}
+        d = {c: _n(new_columns[i]) for i, c in enumerate(cols)}
         self.renameColumn(d, inplace=True)
 
     @property
@@ -644,11 +642,11 @@ class GataFrame:
                 op = f"select()"
         else:
             if include_others == False:
-                list_cols = ", ".join(list_of_cols)                
+                list_cols = ", ".join(list_of_cols)
                 new_df = self._rel.select(list_cols)
                 op = f"select({list_cols})"
             else:
-                list_cols = ", ".join(list_of_cols)                
+                list_cols = ", ".join(list_of_cols)
                 tmp = self._rel.project(f"{list_cols}").limit(0)
                 new_cols: list[str] = list(_n(c) for c in tmp.columns)
                 to_replace: list[str] = []

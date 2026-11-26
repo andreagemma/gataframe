@@ -1103,9 +1103,8 @@ class Engine:
         # Default DuckDB-based implementation
         if self.connection is None:
             raise Exception("Connection required")
-        ret = (
-            self.connection.execute(
-                """
+        ret = self.connection.execute(
+            """
             select exists (
                 select 1
                 from duckdb_tables()
@@ -1116,10 +1115,8 @@ class Engine:
             )
             limit 1
         """,
-                [database, schema, table],
-            )
-            .fetchall()
-        )
+            [database, schema, table],
+        ).fetchall()
         if ret and ret[0]:
             return ret[0][0]
         else:
@@ -2545,7 +2542,9 @@ class Engine:
                     con.execute(f"CALL postgres_execute('{attach_alias}','{ddl_pk}')")
             cols = rel.columns
             cols_str = ", ".join([f'"{c}"' for c in cols])
-            con.execute(f'insert into "{attach_alias}"."{schema}"."{table}" ({cols_str}) SELECT {cols_str} FROM {temp_view}')  # pyright: ignore[reportOptionalMemberAccess]
+            con.execute(
+                f'insert into "{attach_alias}"."{schema}"."{table}" ({cols_str}) SELECT {cols_str} FROM {temp_view}'
+            )  # pyright: ignore[reportOptionalMemberAccess]
 
             if create_table:
                 if ddl_indexes:
