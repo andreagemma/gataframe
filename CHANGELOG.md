@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Documented `Engine.read(...)` source paths and database URL syntax, and
+  `Engine.write(...)` destination paths and URLs.
+- Expanded the API reference to cover the package-level helpers, engine methods,
+  GataFrame methods and properties, and exported schema models.
+
 ## 0.1.8
 
 - Fix error with duckdb>2

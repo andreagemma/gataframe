@@ -11,6 +11,8 @@ tabular and geospatial workflows.
 The PyPI distribution is named `ga-gataframe`; the import package is named
 `gataframe`.
 
+For the full public API, see the [API Reference](docs/api.md).
+
 ## Installation
 
 ```bash
@@ -116,6 +118,17 @@ Reader format aliases are also supported and normalized automatically:
 - JSON: `json`
 - GeoJSON: `geojson`
 - SQLite files: `sqlite`, `sqlite3`, `db`, `db3`
+
+For file sources, pass a path and optionally `format=`. To select a layer in a
+GeoPackage, append `|layer=<name>` (for example,
+`engine.read("network.gpkg|layer=roads")`). Database sources use URLs: PostgreSQL
+accepts `postgresql://` or `postgres://` with `schema` and either `table` or
+`query` parameters; SQLite accepts URLs such as
+`sqlite:////path/to/database.sqlite` with a `table` or `query` parameter.
+`Engine.write(...)` uses file paths or PostgreSQL and SQLite URLs with a
+required `table` parameter. See the
+[API Reference](docs/api.md#source-and-destination-strings) for complete syntax,
+examples, and supported options.
 
 DuckDB extensions are loaded only when requested by the caller or needed by a
 specific geospatial/database operation.

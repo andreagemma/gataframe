@@ -57,6 +57,8 @@ DUCKDB_TYPE_ALIASES: dict[str, str] = {
     "time with time zone": "TIMETZ",
     "timestamp": "TIMESTAMP",
     "timestamptz": "TIMESTAMPTZ",
+    "timestamp_ns": "TIMESTAMP",
+    "timestamp_ns": "TIMESTAMPTZ_NS",
     "timestamp without time zone": "TIMESTAMP",
     "timestamp with time zone": "TIMESTAMPTZ",
     # other common types
