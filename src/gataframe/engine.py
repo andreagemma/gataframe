@@ -15,7 +15,7 @@ import duckdb
 import tempfile
 from uuid import uuid4
 import threading as th
-from typing import Sequence, Any, Optional, Generator, Callable
+from typing import Any, Callable, Generator, Literal, Optional, Sequence
 from .files import clean_folder, remove_path
 from .data_schema import DataSchema
 from .gata_frame import GataFrame
@@ -118,15 +118,15 @@ class Engine:
         file: str | Path | None = None,
         **kwargs: dict[str, Any],
     ):
-        """Implement `__init__`.
+        """Create an Engine and configure its DuckDB connection.
 
         Args:
-            logger: TODO describe logger.
-            extensions: TODO describe extensions.
-            options: TODO describe options.
-            file_based: TODO describe file_based.
-            file: TODO describe file.
-            kwargs: TODO describe kwargs.
+            logger: Logger used for engine diagnostics; a module logger is used by default.
+            extensions: Extensions to install and load. A pair may specify an extension repository.
+            options: DuckDB settings to apply after connecting.
+            file_based: Use a database file; when false, use an in-memory database.
+            file: Database file path. When omitted in file-based mode, a temporary file is created.
+            kwargs: Additional constructor options reserved for compatibility.
 
         """
         self.file_based: bool = file_based
@@ -203,12 +203,7 @@ class Engine:
             Engine.parallelism = row[0][0] if row and row[0] else 1
 
         def fn_clean() -> None:
-            """Fn clean.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Remove stale files from the engine's temporary directory."""
             removed_files: int = clean_folder(
                 temp_folder,
                 age=1,
@@ -329,35 +324,33 @@ class Engine:
         file: str | Path | None = None,
         **kwargs: dict[str, Any],
     ) -> Engine:
-        """Connect.
+        """Create an Engine and open its DuckDB connection.
 
         Args:
-            logger: TODO describe logger.
-            extensions: TODO describe extensions.
-            options: TODO describe options.
-            file_based: TODO describe file_based.
-            file: TODO describe file.
-            kwargs: TODO describe kwargs.
+            logger: Logger used for engine diagnostics.
+            extensions: Extensions to install and load; set to ``None`` to skip loading extensions.
+            options: DuckDB settings to apply after connecting.
+            file_based: Use a database file instead of an in-memory database.
+            file: Optional database file path; omitted file-based connections use a temporary file.
+            kwargs: Additional constructor options forwarded to Engine.
 
         Returns:
-            TODO describe return value.
-
+            A connected Engine instance.
         """
         return Engine(logger=logger, extensions=extensions, options=options, file_based=file_based, file=file, **kwargs)
 
     def __enter__(self) -> Engine:
-        """Implement `__enter__`.
+        """Return this engine for use as a context manager.
 
         Returns:
-            TODO describe return value.
-
+            This Engine instance.
         """
         if self.engine is None:
             self.engine = Engine.connect()
         return self.engine
 
     def close(self):
-        """Close."""
+        """Close the DuckDB connection and remove its temporary database file, if any."""
         try:
             if self.connection is not None:
                 self.connection.close()
@@ -375,12 +368,12 @@ class Engine:
             self.logger.warning(f"Error to remove temp file {print_info}")
 
     def __exit__(self, exc_type: type | None, exc_value: BaseException | None, exc_tb: Any | None):
-        """Implement `__exit__`.
+        """Close the engine when leaving a context manager.
 
         Args:
-            exc_type: TODO describe exc_type.
-            exc_value: TODO describe exc_value.
-            exc_tb: TODO describe exc_tb.
+            exc_type: Exception type raised inside the context, if any.
+            exc_value: Exception instance raised inside the context, if any.
+            exc_tb: Traceback associated with the exception, if any.
 
         """
         self.close()
@@ -577,7 +570,7 @@ class Engine:
                 files = [src_path]
             if len(files) == 0:
                 raise FileNotFoundError(f"No supported files found in directory: {src_path}")
-            params = self._kwargs_to_string(sep_kwargs=" ", **kwargs)
+            params = self._kwargs_to_string(sep_kwargs="=", **kwargs)
 
             rel: duckdb.DuckDBPyRelation | None = None  # pyright: ignore[reportRedeclaration, reportAssignmentType]
             for file in files:
@@ -602,7 +595,7 @@ class Engine:
                 files = [src_path]
             if len(files) == 0:
                 raise FileNotFoundError(f"No supported files found in directory: {src_path}")
-            params = self._kwargs_to_string(sep_kwargs=" ", **kwargs)
+            params = self._kwargs_to_string(sep_kwargs="=", **kwargs)
 
             rel: duckdb.DuckDBPyRelation | None = None  # pyright: ignore[reportRedeclaration, reportAssignmentType]
             for file in files:
@@ -625,7 +618,7 @@ class Engine:
                 files = [src_path]
             if len(files) == 0:
                 raise FileNotFoundError(f"No supported files found in directory: {src_path}")
-            params = self._kwargs_to_string(sep_kwargs=" ", **kwargs)
+            params = self._kwargs_to_string(sep_kwargs="=", **kwargs)
 
             rel: duckdb.DuckDBPyRelation | None = None  # pyright: ignore[reportRedeclaration, reportAssignmentType]
             for file in files:
@@ -655,7 +648,7 @@ class Engine:
                 files = [src_path]
             if len(files) == 0:
                 raise FileNotFoundError(f"No supported files found in directory: {src_path}")
-            params = self._kwargs_to_string(sep_kwargs=" ", **kwargs)
+            params = self._kwargs_to_string(sep_kwargs="=", **kwargs)
             rel: duckdb.DuckDBPyRelation | None = None  # pyright: ignore[reportRedeclaration, reportAssignmentType]
             for file in files:
                 new_rel = self.connection.sql(f"SELECT * FROM ST_Read('{file}' {params} )")  # pyright: ignore[reportOptionalMemberAccess]
@@ -680,7 +673,7 @@ class Engine:
         schema = db_params.get("schema", ["public"])[0]
         sql_query = db_params.get("query", [None])[0]
 
-        if db_scheme in ("postgres", "postgresql"):
+        if db_scheme.startswith("postgres"):
             self._ensure_postgres()
             # Strip helper params from URL query for ATTACH
             for k in ("table", "schema", "query", "pk"):
@@ -824,18 +817,20 @@ class Engine:
         """Create db string connection.
 
         Args:
-            db_type: TODO describe db_type.
-            user: TODO describe user.
-            password: TODO describe password.
-            host: TODO describe host.
-            port: TODO describe port.
-            dbname: TODO describe dbname.
-            schema: TODO describe schema.
-            table: TODO describe table.
+            db_type: Supported database scheme (``postgres`` or ``postgresql``).
+            user: Database user name.
+            password: Database password.
+            host: Database server host.
+            port: Database server port.
+            dbname: Database name.
+            schema: Optional schema query parameter.
+            table: Optional table query parameter.
 
         Returns:
-            TODO describe return value.
+            A connection URL with optional schema and table parameters.
 
+        Raises:
+            ValueError: If ``db_type`` is not a supported scheme.
         """
         if db_type in {"postgresql", "postgres"}:
             conn_str = f"{db_type}://{user}:{password}@{host}:{port}/{dbname}"
@@ -860,21 +855,24 @@ class Engine:
         filter: str | None = None,
         **kwargs: dict[str, Any],  # reader kwargs: header, delim, names, dtype, hive_partitioning, union_by_name, etc.
     ) -> GataFrame | None:
-        """Read.
+        """Read an in-memory object, file, directory, or supported database URL.
 
         Args:
-            source: TODO describe source.
-            schema: TODO describe schema.
-            format: TODO describe format.
-            pre_limit: TODO describe pre_limit.
-            limit: TODO describe limit.
-            pre_filter: TODO describe pre_filter.
-            filter: TODO describe filter.
-            kwargs: TODO describe kwargs.
+            source: GataFrame, Pandas/GeoPandas DataFrame, mapping, list of records, path, or URL.
+            schema: Optional schema applied between pre-read and post-schema filtering.
+            format: File format or alias; inferred from the path when omitted.
+            pre_limit: Row limit applied before schema processing.
+            limit: Row limit applied after schema processing.
+            pre_filter: SQL predicate applied before schema processing.
+            filter: SQL predicate applied after schema processing.
+            kwargs: Options passed to the selected DuckDB reader.
 
         Returns:
-            TODO describe return value.
+            The loaded GataFrame, or ``None`` when ``source`` is ``None``.
 
+        Raises:
+            FileNotFoundError: If the requested source path does not exist.
+            ValueError: If the source type, database scheme, or file format is unsupported.
         """
         self.logger.debug(f"Read {source}")
         rel: GataFrame | None = None
@@ -908,7 +906,7 @@ class Engine:
             # DB URL
             if self._is_db_url(src_str):
                 db_scheme, _, _ = self._db_params(src_str)
-                if db_scheme in ("postgres", "postgresql"):
+                if db_scheme.startswith("postgres"):
                     rel = GataFrame(
                         self._read_postgres(src_str), self.connection, pre_filter=pre_filter, pre_limit=pre_limit
                     )
@@ -970,28 +968,26 @@ class Engine:
 
     @staticmethod
     def get_schema_file(source: str | Path) -> Optional[Path]:
-        """Get schema file.
+        """Return the conventional schema sidecar path for a source.
 
         Args:
-            source: TODO describe source.
+            source: Data file path whose sibling schema file is being located.
 
         Returns:
-            TODO describe return value.
-
+            The path formed by appending ``.schema.json`` to the source name.
         """
         source = Path(source)
         return source.parent / (source.name + ".schema.json")
 
     @staticmethod
     def read_schema(schema_file: str | Path) -> Optional[DataSchema]:
-        """Read schema.
+        """Load a DataSchema JSON file when it exists.
 
         Args:
-            schema_file: TODO describe schema_file.
+            schema_file: Path to the schema JSON file.
 
         Returns:
-            TODO describe return value.
-
+            The parsed DataSchema, or ``None`` if the file does not exist.
         """
         schema_file = Path(schema_file)
         if not schema_file.exists():
@@ -1118,10 +1114,10 @@ class Engine:
                 and table_name = ?
                 and table_name not in ('SpatialIndex', 'ElementaryGeometries')
             )
+            limit 1
         """,
                 [database, schema, table],
             )
-            .limit(1)
             .fetchall()
         )
         if ret and ret[0]:
@@ -1147,7 +1143,10 @@ class Engine:
                 raise RuntimeError("SQLAlchemy is required when passing sa_connection to _manage_mode_db") from e
 
             dest_path = f'"{table}"' if not schema else f'"{schema}"."{table}"'
+            print(dest_path)
+            print(f"Mode: {mode}")
             exists = self._table_exists(database=database, schema=schema, table=table, sa_connection=sa_connection)
+            print(f"Exists: {exists}")
             if exists:
                 if mode == "error":
                     raise FileExistsError(f"Destination exists: {dest_path}")
@@ -1737,12 +1736,7 @@ class Engine:
             raise ValueError(f"Unsupported database scheme for SQLite writer: {db_scheme}")
 
         def create_spatialite_db(db_path: str):
-            """Create spatialite db.
-
-            Args:
-                db_path: TODO describe db_path.
-
-            """
+            """Initialize a SQLite database file with SpatiaLite metadata."""
             try:
                 # Remove existing DB if needed (for demo purposes)
                 if os.path.exists(db_path):
@@ -1805,16 +1799,7 @@ class Engine:
         rel_colset = set(rel_cols)
 
         def qident(name: str, cols: set[str] | list[str] | None = None) -> str:
-            """Qident.
-
-            Args:
-                name: TODO describe name.
-                cols: TODO describe cols.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Quote an identifier, leaving unknown column expressions unchanged."""
             if cols is None:
                 return '"' + str(name).replace('"', '""') + '"'
             if name.strip() in cols:
@@ -1822,15 +1807,7 @@ class Engine:
             return name
 
         def safe_table_suffix(value: Any) -> str:
-            """Safe table suffix.
-
-            Args:
-                value: TODO describe value.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Replace characters unsuitable for a generated table suffix."""
             s = str(value)
             return "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in s)
 
@@ -1876,15 +1853,7 @@ class Engine:
         def normalize_index_seq(
             idx: Sequence[str | tuple[str, str]] | str | tuple[str, str] | None,
         ) -> list[str | tuple[str, str]]:
-            """Normalize index seq.
-
-            Args:
-                idx: TODO describe idx.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Normalize a single index specification or sequence to a list."""
             if idx is None:
                 return []
             if isinstance(idx, str):
@@ -1899,18 +1868,7 @@ class Engine:
             dest: str,
             table: str,
         ) -> list[str]:
-            """Build additional indexes.
-
-            Args:
-                idx_specs: TODO describe idx_specs.
-                rel_colset: TODO describe rel_colset.
-                dest: TODO describe dest.
-                table: TODO describe table.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Build SQL statements for the requested indexes on relation columns."""
             rel_colset_lower = {c.lower() for c in rel_colset}
             ddls: list[str] = []
             used_names: set[str] = set()
@@ -2021,12 +1979,7 @@ class Engine:
 
         # creazione iniziale del file SpatiaLite (se non esiste)
         def create_spatialite_db(db_path: str):
-            """Create spatialite db.
-
-            Args:
-                db_path: TODO describe db_path.
-
-            """
+            """Initialize a SQLite database file with SpatiaLite metadata."""
             try:
                 # Connect to SQLite database
                 conn = sqlite3.connect(db_path)
@@ -2090,16 +2043,7 @@ class Engine:
         rel_colset = set(rel_cols)
 
         def qident(name: str, cols: set[str] | list[str] | None = None) -> str:
-            """Qident.
-
-            Args:
-                name: TODO describe name.
-                cols: TODO describe cols.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Quote an identifier, leaving unknown column expressions unchanged."""
             if cols is None:
                 return '"' + str(name).replace('"', '""') + '"'
             if name.strip() in cols:
@@ -2107,30 +2051,14 @@ class Engine:
             return name
 
         def safe_table_suffix(value: Any) -> str:
-            """Safe table suffix.
-
-            Args:
-                value: TODO describe value.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Replace characters unsuitable for a generated table suffix."""
             s = str(value)
             return "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in s)
 
         def normalize_index_seq(
             idx: Sequence[str | tuple[str, str]] | str | tuple[str, str] | None,
         ) -> list[str | tuple[str, str]]:
-            """Normalize index seq.
-
-            Args:
-                idx: TODO describe idx.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Normalize a single index specification or sequence to a list."""
             if idx is None:
                 return []
             if isinstance(idx, str):
@@ -2145,18 +2073,7 @@ class Engine:
             dest: str,
             table: str,
         ) -> list[str]:
-            """Build additional indexes.
-
-            Args:
-                idx_specs: TODO describe idx_specs.
-                rel_colset: TODO describe rel_colset.
-                dest: TODO describe dest.
-                table: TODO describe table.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Build SQL statements for the requested indexes on relation columns."""
             rel_colset_lower = {c.lower() for c in rel_colset}
             ddls: list[str] = []
             used_names: set[str] = set()
@@ -2320,16 +2237,7 @@ class Engine:
         rel_colset = set(rel_cols)
 
         def qident(name: str, cols: set[str] | list[str] | None = None) -> str:
-            """Qident.
-
-            Args:
-                name: TODO describe name.
-                cols: TODO describe cols.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Quote an identifier, leaving unknown column expressions unchanged."""
             if cols is None:
                 return '"' + str(name).replace('"', '""') + '"'
             if name.strip() in cols:
@@ -2337,29 +2245,13 @@ class Engine:
             return name
 
         def qname(*parts: str) -> str:
-            """Qname.
-
-            Args:
-                parts: TODO describe parts.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Join quoted identifier components into a qualified SQL name."""
             return ".".join(qident(p, None) for p in parts if p)
 
         def normalize_index_seq(
             idx: Sequence[str | tuple[str, str]] | str | tuple[str, str] | None,
         ) -> list[str | tuple[str, str]]:
-            """Normalize index seq.
-
-            Args:
-                idx: TODO describe idx.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Normalize a single index specification or sequence to a list."""
             if idx is None:
                 return []
             if isinstance(idx, str):
@@ -2369,15 +2261,7 @@ class Engine:
             return list(idx)
 
         def unique_preserve_order(items: Sequence[str]) -> list[str]:
-            """Unique preserve order.
-
-            Args:
-                items: TODO describe items.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Remove duplicate strings while preserving their first-seen order."""
             seen: set[str] = set()
             out: list[str] = []
             for x in items:
@@ -2387,15 +2271,7 @@ class Engine:
             return out
 
         def get_nparts_for_level(level: int) -> int | None:
-            """Get nparts for level.
-
-            Args:
-                level: TODO describe level.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Return the configured partition count for a nesting level."""
             if n_partitions is None:
                 return None
             if isinstance(n_partitions, int):
@@ -2408,28 +2284,12 @@ class Engine:
             return int(n_partitions[level])
 
         def safe_table_suffix(value: Any) -> str:
-            """Safe table suffix.
-
-            Args:
-                value: TODO describe value.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Replace characters unsuitable for a generated table suffix."""
             s = str(value)
             return "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in s)
 
         def normalize_index_type(index_type: str | None) -> str:
-            """Normalize index type.
-
-            Args:
-                index_type: TODO describe index_type.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Normalize an index method name, defaulting to ``BTREE``."""
             if not index_type:
                 return "BTREE"
             return index_type.strip().upper()
@@ -2440,18 +2300,7 @@ class Engine:
             dest: str,
             table: str,
         ) -> list[str]:
-            """Build additional indexes.
-
-            Args:
-                idx_specs: TODO describe idx_specs.
-                rel_colset: TODO describe rel_colset.
-                dest: TODO describe dest.
-                table: TODO describe table.
-
-            Returns:
-                TODO describe return value.
-
-            """
+            """Build SQL statements for the requested PostgreSQL indexes."""
             rel_colset = {c.lower() for c in rel_colset}
             ddls: list[str] = []
             used_names: set[str] = set()
@@ -2660,7 +2509,8 @@ class Engine:
                     index[i] = tuple(idx)  # pyright: ignore
 
         db_params.pop("query", None)
-        if db_scheme in ("postgres", "postgresql"):
+        if db_scheme.startswith("postgres"):
+            db_parsed = db_parsed._replace(scheme=db_parsed.scheme.split("+")[0])
             clean_url = urlunparse(db_parsed)
             clean_url = f"dbname={db_parsed.path.lstrip('/')} port={db_parsed.port} host={db_parsed.hostname} user={db_parsed.username} password={db_parsed.password}"
             attach_alias = self._db_attached.get((clean_url, ""), None)
@@ -2693,8 +2543,9 @@ class Engine:
 
                 if ddl_pk:
                     con.execute(f"CALL postgres_execute('{attach_alias}','{ddl_pk}')")
-
-            con.execute(f'insert into "{attach_alias}"."{schema}"."{table}" SELECT * FROM {temp_view}')  # pyright: ignore[reportOptionalMemberAccess]
+            cols = rel.columns
+            cols_str = ", ".join([f'"{c}"' for c in cols])
+            con.execute(f'insert into "{attach_alias}"."{schema}"."{table}" ({cols_str}) SELECT {cols_str} FROM {temp_view}')  # pyright: ignore[reportOptionalMemberAccess]
 
             if create_table:
                 if ddl_indexes:
@@ -2709,7 +2560,7 @@ class Engine:
         self,
         df: GataFrame | pd.DataFrame | gpd.GeoDataFrame,
         destination: str | Path,
-        mode: str = "overwrite",  # overwrite, append, error, truncate (db), ignore, warning
+        mode: Literal["overwrite", "append", "error", "truncate", "ignore", "warning"] = "overwrite",
         partitionBy: str | Sequence[str] | None = None,
         pk: str | Sequence[str] | None = None,
         index: str | Sequence[str] | Sequence[str | tuple[str, str]] | None = None,
@@ -2721,17 +2572,29 @@ class Engine:
         format: str | None = None,
         **kwargs: dict[str, Any],  # writer kwargs (parquet options, compression, etc.) / db options
     ) -> None:
-        """
-        destination:
-          - file/dir path OR
-          - sqlalchemy-like url: scheme://... ?table=...&schema=...&pk=... (pk optional)
-        For DB:
-          - postgres/sqlite "supported" detected by scheme; uses SQLAlchemy for robust DDL/insert.
-          - if scheme not supported, uses SQLAlchemy.
-        For file:
-          - uses DuckDB COPY TO ... (FORMAT PARQUET/CSV), PARTITION_BY for hive layout if simulate_hive True.
-          - if simulate_hive=False: writes a single file without partitioning.
-          - if n_partitions is set and hive partitioning is off, writes N part files.
+        """Write a GataFrame, Pandas DataFrame, or GeoDataFrame to a file or database.
+
+        Database destinations are URLs with table/schema query parameters. File destinations
+        use DuckDB writers; ``partitionBy`` and ``hive_partitioning`` control partitioned output.
+
+        Args:
+            df: Data to write.
+            destination: File/directory path or supported SQLite/PostgreSQL connection URL.
+            mode: Existing-destination behavior: ``overwrite``, ``append``, ``error``, or
+                ``warning`` for files; database modes also support ``truncate``.
+            partitionBy: Columns used to partition file output or database writes.
+            pk: Primary-key column name(s) for database destinations.
+            index: Index definitions for database destinations.
+            n_partitions: Optional number of output partitions.
+            geometry: Geometry column to serialize or transform; ``None`` disables geometry handling.
+            crs_source: Source CRS used when transforming the geometry column.
+            crs_target: Destination CRS for geometry transformation.
+            hive_partitioning: Write file partitions in Hive-style directories when supported.
+            format: Destination file format; inferred from the path suffix when omitted.
+            kwargs: Writer options forwarded to DuckDB or database handling.
+
+        Raises:
+            ValueError: If the destination scheme, format, or mode is unsupported.
         """
         mode = (mode or "overwrite").lower().strip()
         dest_str: str = str(destination)
@@ -2779,7 +2642,7 @@ class Engine:
                 'mode parameter has been in  ("overwrite","append","error","warning","truncate")'
             )
             db_scheme, _, _ = self._db_params(dest_str)
-            if db_scheme in ("postgres", "postgresql"):
+            if db_scheme.startswith("postgres"):
                 self._write_db_postgres(
                     rel=rel,
                     con=connection,

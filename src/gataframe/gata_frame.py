@@ -12,10 +12,13 @@ from .data_schema import DataSchema, SchemaField, GeneratorSpec, AdditionalSchem
 from .conversion_types import DUCKDB_TYPE_ALIASES, duckdb_type_to_pandas
 
 
-def _normalize_col_name(col: str) -> str:
+def _normalize_col_name(col: str, strips=['"',"'"]) -> str:
     # Internal helper: normalize col name.
     """Internal helper: normalize col name."""
-    return col.strip().strip('"').strip("'")
+    ret = col.strip()
+    for c in strips:
+        ret = ret.strip(c)
+    return ret
 
 
 _n = _normalize_col_name
@@ -48,14 +51,16 @@ class GFDataType(Enum):
 
     @classmethod
     def parse(cls, value: str) -> GFDataType:
-        """Parse.
+        """Parse a DuckDB type name supported by GataFrame.
 
         Args:
-            value: TODO describe value.
+            value: Type name, matched case-insensitively.
 
         Returns:
-            TODO describe return value.
+            The matching data type.
 
+        Raises:
+            ValueError: If ``value`` is not a supported type.
         """
         value = value.upper()
         for dtype in cls:
@@ -73,19 +78,17 @@ class GataFrame:
     GataFramesStatus: dict[str, dict[str, Any]] = {}
 
     def __new__(
-        cls, df: DuckDBPyRelation | GataFrame, con: DuckDBPyConnection | Any | None = None, *args: Any, **kwargs: Any
+        cls, df: DuckDBPyRelation | GataFrame, *args: Any, **kwargs: Any
     ) -> GataFrame:
-        """Implement `__new__`.
+        """Create a wrapper, reusing ``df`` when it is already a GataFrame.
 
         Args:
-            df: TODO describe df.
-            con: TODO describe con.
-            args: TODO describe args.
-            kwargs: TODO describe kwargs.
+            df: DuckDB relation or existing GataFrame to wrap.
+            args: Additional positional arguments accepted by the constructor.
+            kwargs: Additional keyword arguments accepted by the constructor.
 
         Returns:
-            TODO describe return value.
-
+            The existing GataFrame, or a new uninitialized wrapper.
         """
         if isinstance(df, cls):
             df._fresh = False
@@ -104,16 +107,16 @@ class GataFrame:
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        """Implement `__init__`.
+        """Wrap a DuckDB relation and attach its connection and metadata.
 
         Args:
-            df: TODO describe df.
-            con: TODO describe con.
-            alias: TODO describe alias.
-            description: TODO describe description.
-            version: TODO describe version.
-            args: TODO describe args.
-            kwargs: TODO describe kwargs.
+            df: Relation or GataFrame whose relation will be wrapped.
+            con: DuckDB connection, or an object exposing one in its attributes.
+            alias: Optional table or view name associated with the relation.
+            description: Optional human-readable description for schema metadata.
+            version: Initial operation-history version.
+            args: Additional positional arguments reserved for compatibility.
+            kwargs: Additional keyword arguments reserved for compatibility.
 
         """
         if not getattr(self, "_fresh", False):
@@ -177,14 +180,13 @@ class GataFrame:
 
     @staticmethod
     def get_new_alias(prefix: str = "t_") -> str:
-        """Get new alias.
+        """Generate a unique alias, optionally prefixed.
 
         Args:
-            prefix: TODO describe prefix.
+            prefix: Text prepended to the generated UUID; an empty string omits it.
 
         Returns:
-            TODO describe return value.
-
+            A unique alias string.
         """
         alias: str = uuid4().hex
         if prefix:
@@ -201,11 +203,10 @@ class GataFrame:
         return None
 
     def __str__(self) -> str:
-        """Implement `__str__`.
+        """Return a summary containing metadata, shape, and transformation history.
 
         Returns:
-            TODO describe return value.
-
+            A human-readable representation of this GataFrame.
         """
         attrs: list[str] = []
         if self._description:
@@ -239,63 +240,55 @@ class GataFrame:
 
     @property
     def uuid(self) -> str:
-        """Uuid.
+        """Return this wrapper's unique identifier.
 
         Returns:
-            TODO describe return value.
-
+            A hexadecimal UUID string.
         """
         return self._uuid
 
     @property
     def conection(self) -> DuckDBPyConnection:
-        """Conection.
+        """Return the DuckDB connection (legacy property spelling).
 
         Returns:
-            TODO describe return value.
-
+            The connection backing this GataFrame.
         """
         return self._con
 
     @property
     def relation(self) -> DuckDBPyRelation:
-        """Relation.
+        """Return the underlying DuckDB relation.
 
         Returns:
-            TODO describe return value.
-
+            The DuckDB relation wrapped by this GataFrame.
         """
         return self._rel
 
     @property
     def get_type(self) -> str:
-        """Get type.
+        """Return the registered relation kind.
 
         Returns:
-            TODO describe return value.
-
+            One of the GataFrame relation, table, view, or inconsistent type labels.
         """
         return self._type
 
     @property
     def alias(self) -> str | None:
-        """Alias.
+        """Return the table or view alias, if one is assigned.
 
         Returns:
-            TODO describe return value.
-
+            The current alias, or ``None`` for an unnamed relation.
         """
         return self._alias
 
     def show(self, max_rows: int | None = 10, logger: logging.Logger | None = None) -> None:
-        """Show.
+        """Display the relation, optionally sending the output to a logger.
 
         Args:
-            max_rows: TODO describe max_rows.
-            logger: TODO describe logger.
-
-        Returns:
-            TODO describe return value.
+            max_rows: Maximum number of rows to display; ``None`` displays all rows.
+            logger: Logger to receive the formatted relation instead of stdout.
 
         """
         if logger:
@@ -304,10 +297,10 @@ class GataFrame:
             self._rel.show(max_rows=max_rows)
 
     def printSchema(self, logger: logging.Logger | None = None):
-        """PrintSchema.
+        """Display column names and DuckDB types.
 
         Args:
-            logger: TODO describe logger.
+            logger: Logger to receive the schema instead of stdout.
 
         """
         if logger:
@@ -319,11 +312,11 @@ class GataFrame:
             _p(f"|-{name}: {dtype}")
 
     def explain(self, analyze: bool = False, logger: logging.Logger | None = None):
-        """Explain.
+        """Display DuckDB's query plan, optionally with execution analysis.
 
         Args:
-            analyze: TODO describe analyze.
-            logger: TODO describe logger.
+            analyze: If true, request an analyzed plan; otherwise show the standard plan.
+            logger: Logger to receive the plan instead of stdout.
 
         """
         if logger:
@@ -338,90 +331,94 @@ class GataFrame:
 
     @property
     def empty(self) -> bool:
-        """Empty.
+        """Return whether the relation contains no rows.
 
         Returns:
-            TODO describe return value.
-
+            ``True`` when the row count is zero.
         """
         return self._rel.shape[0] == 0
 
     def isEmpty(self) -> bool:
-        """IsEmpty.
+        """Return whether the relation contains no rows.
 
         Returns:
-            TODO describe return value.
-
+            ``True`` when the row count is zero.
         """
         return self._rel.shape[0] == 0
 
     @property
     def shape(self) -> tuple[int, int]:
-        """Shape.
+        """Return the relation's row and column counts.
 
         Returns:
-            TODO describe return value.
-
+            A ``(rows, columns)`` tuple.
         """
         return self._rel.shape
 
     @property
     def count(self) -> int:
-        """Count.
+        """Return the number of rows.
 
         Returns:
-            TODO describe return value.
-
+            The row count.
         """
         return self._rel.shape[0]
 
     @property
     def n_cols(self) -> int:
-        """N cols.
+        """Return the number of columns.
 
         Returns:
-            TODO describe return value.
-
+            The column count.
         """
         return self._rel.shape[1]
 
     @property
     def n_rows(self) -> int:
-        """N rows.
+        """Return the number of rows.
 
         Returns:
-            TODO describe return value.
-
+            The row count.
         """
         return self._rel.shape[0]
 
     @property
     def columns(self) -> list[str]:
-        """Columns.
+        """Return the column names in relation order.
 
         Returns:
-            TODO describe return value.
-
+            A list of column names.
         """
         return self._rel.columns
 
+    @columns.setter
+    def columns(self, new_columns: list[str]) -> None:
+        """Set new column names.
+
+        Args:
+            new_columns: List of new column names.
+
+        """
+        assert len(new_columns) == len(self._rel.columns), "Number of new columns must match existing columns."
+        cols = self.columns
+        d = {c: _n(new_columns[i]) for i,c in enumerate(cols)}
+        self.renameColumn(d, inplace=True)
+
     @property
     def types(self) -> list[DuckDBPyType]:
-        """Types.
+        """Return the DuckDB types in column order.
 
         Returns:
-            TODO describe return value.
-
+            A list of DuckDB types corresponding to ``columns``.
         """
         return self._rel.types
 
     @property
     def dtypes(self) -> dict[str, DuckDBPyType]:
-        """Dtypes.
+        """Return a mapping from column names to DuckDB types.
 
         Returns:
-            TODO describe return value.
-
+            Column names mapped to their DuckDB types.
         """
         return dict(zip(self._rel.columns, self._rel.types))  # pyright: ignore[reportReturnType]
 
@@ -431,16 +428,15 @@ class GataFrame:
         return {name: duckdb_type_to_pandas(str(dtype)) for name, dtype in self.dtypes.items()}
 
     def withColumn(self, cols: str | dict[str, str], expr: Any | None = None, inplace: bool = False) -> GataFrame:
-        """WithColumn.
+        """Add one or more columns computed from DuckDB SQL expressions.
 
         Args:
-            cols: TODO describe cols.
-            expr: TODO describe expr.
-            inplace: TODO describe inplace.
+            cols: New column name, or a mapping of output names to expressions.
+            expr: SQL expression used when ``cols`` is a single name.
+            inplace: If true, replace this object's relation instead of creating a wrapper.
 
         Returns:
-            TODO describe return value.
-
+            The modified object when ``inplace`` is true, otherwise a new GataFrame.
         """
         assert isinstance(cols, (str, dict)), (
             "col must be a string or a dictionary mapping column names with expressions."
@@ -492,16 +488,15 @@ class GataFrame:
             raise ValueError("Parameters are not valid.")
 
     def renameColumn(self, cols: str | dict[str, str], rename: str | None = None, inplace: bool = False) -> GataFrame:
-        """RenameColumn.
+        """Rename one or more columns without changing their values.
 
         Args:
-            cols: TODO describe cols.
-            rename: TODO describe rename.
-            inplace: TODO describe inplace.
+            cols: Existing column name, or mapping of old names to new names.
+            rename: New name when ``cols`` is a single column name.
+            inplace: If true, update this object; otherwise return a new wrapper.
 
         Returns:
-            TODO describe return value.
-
+            The renamed GataFrame.
         """
         assert isinstance(cols, (str, dict)), (
             "cols must be a string or a dictionary mapping column names with expressions."
@@ -541,15 +536,14 @@ class GataFrame:
             return self._create_from_relation(new_df, op=op)
 
     def excludeColumn(self, *cols: Iterable[str | Iterable[str]], inplace: bool = True) -> GataFrame:
-        """ExcludeColumn.
+        """Remove the specified columns from the relation.
 
         Args:
-            inplace: TODO describe inplace.
-            cols: TODO describe cols.
+            *cols: Column names or iterables of column names to exclude.
+            inplace: If true, update this object; otherwise return a new wrapper.
 
         Returns:
-            TODO describe return value.
-
+            The GataFrame containing the remaining columns.
         """
         list_of_cols: list[str] = []
         for col in cols:
@@ -574,16 +568,15 @@ class GataFrame:
             return self._create_from_relation(new_df, op=op)
 
     def replaceColumn(self, cols: str | dict[str, str], expr: Any | None = None, inplace: bool = False) -> GataFrame:
-        """ReplaceColumn.
+        """Replace existing column values using DuckDB SQL expressions.
 
         Args:
-            cols: TODO describe cols.
-            expr: TODO describe expr.
-            inplace: TODO describe inplace.
+            cols: Existing column name, or mapping of names to replacement expressions.
+            expr: SQL expression used when ``cols`` is a single name.
+            inplace: If true, update this object; otherwise return a new wrapper.
 
         Returns:
-            TODO describe return value.
-
+            The GataFrame with replaced column values.
         """
         assert isinstance(cols, (str, dict)), (
             "col must be a string or a dictionary mapping column names with expressions."
@@ -624,16 +617,15 @@ class GataFrame:
     def project(
         self, *cols: Iterable[str | Iterable[str]], inplace: bool = False, include_others: bool = False
     ) -> GataFrame:
-        """Project.
+        """Select columns or expressions, optionally retaining other columns.
 
         Args:
-            inplace: TODO describe inplace.
-            include_others: TODO describe include_others.
-            cols: TODO describe cols.
+            *cols: Column names or DuckDB SQL expressions to project.
+            inplace: If true, update this object; otherwise return a new wrapper.
+            include_others: Retain unmentioned columns; matching existing columns are replaced.
 
         Returns:
-            TODO describe return value.
-
+            The projected GataFrame. ``select`` is an alias for this method.
         """
         list_of_cols: list[str] = []
         for col in cols:
@@ -641,7 +633,7 @@ class GataFrame:
                 list_of_cols.append(col)
             else:
                 list_of_cols.extend(col)  # pyright: ignore[reportArgumentType]
-        list_of_cols = list(_n(c) for c in list_of_cols)
+        list_of_cols = list(_n(c, strips=['"']) for c in list_of_cols)
         new_df: DuckDBPyRelation | None = None
         if not bool(list_of_cols):
             if include_others == True:
@@ -652,11 +644,11 @@ class GataFrame:
                 op = f"select()"
         else:
             if include_others == False:
-                list_cols = ", ".join(list_of_cols)
+                list_cols = ", ".join(list_of_cols)                
                 new_df = self._rel.select(list_cols)
                 op = f"select({list_cols})"
             else:
-                list_cols = ", ".join(list_of_cols)
+                list_cols = ", ".join(list_of_cols)                
                 tmp = self._rel.project(f"{list_cols}").limit(0)
                 new_cols: list[str] = list(_n(c) for c in tmp.columns)
                 to_replace: list[str] = []
@@ -687,15 +679,14 @@ class GataFrame:
     select = project
 
     def filter(self, filter_expr: str, inplace: bool = False) -> GataFrame:
-        """Filter.
+        """Keep rows matching a DuckDB SQL predicate.
 
         Args:
-            filter_expr: TODO describe filter_expr.
-            inplace: TODO describe inplace.
+            filter_expr: SQL boolean expression used to select rows.
+            inplace: If true, update this object; otherwise return a new wrapper.
 
         Returns:
-            TODO describe return value.
-
+            The filtered GataFrame.
         """
         new_df = self._rel.filter(filter_expr)
         op = f"filter({filter_expr})"
@@ -708,15 +699,14 @@ class GataFrame:
             return self._create_from_relation(new_df, op=op)
 
     def limit(self, n: int | None, inplace: bool = False) -> GataFrame:
-        """Limit.
+        """Limit the relation to the first ``n`` rows.
 
         Args:
-            n: TODO describe n.
-            inplace: TODO describe inplace.
+            n: Maximum number of rows; ``None`` leaves the relation unbounded and warns.
+            inplace: If true, update this object; otherwise return a new wrapper.
 
         Returns:
-            TODO describe return value.
-
+            The limited GataFrame.
         """
         if n is None:
             warnings.warn("Limit None is treated as no limit (full dataset).", UserWarning)
@@ -735,17 +725,16 @@ class GataFrame:
     def createTable(
         self, table_name: str | None = None, replace: bool = False, inplace: bool = False, temporary: bool = True
     ) -> GataFrame:
-        """CreateTable.
+        """Materialize the relation as a DuckDB table.
 
         Args:
-            table_name: TODO describe table_name.
-            replace: TODO describe replace.
-            inplace: TODO describe inplace.
-            temporary: TODO describe temporary.
+            table_name: Destination name; a unique name is generated when omitted.
+            replace: Drop an existing table with that name before creating it.
+            inplace: If true, make this object represent the created table.
+            temporary: Create a temporary table when true, otherwise a persistent table.
 
         Returns:
-            TODO describe return value.
-
+            The created table as a GataFrame.
         """
         if not (table_name):
             table_name = GataFrame.get_new_alias(prefix="t_")
@@ -775,16 +764,15 @@ class GataFrame:
             return new_df
 
     def createView(self, view_name: str | None = None, replace: bool = False, inplace: bool = False) -> GataFrame:
-        """CreateView.
+        """Create a DuckDB view over the relation.
 
         Args:
-            view_name: TODO describe view_name.
-            replace: TODO describe replace.
-            inplace: TODO describe inplace.
+            view_name: Destination name; a unique name is generated when omitted.
+            replace: Replace an existing view with the same name.
+            inplace: If true, make this object represent the created view.
 
         Returns:
-            TODO describe return value.
-
+            The created view as a GataFrame.
         """
         if not (view_name):
             view_name = GataFrame.get_new_alias(prefix="v_")
@@ -803,10 +791,10 @@ class GataFrame:
             return new_df
 
     def dropTable(self, name: str | None = None):
-        """DropTable.
+        """Drop a DuckDB table and mark its tracked wrapper as inconsistent.
 
         Args:
-            name: TODO describe name.
+            name: Table name; defaults to this object's alias.
 
         """
         if name is None:
@@ -826,10 +814,10 @@ class GataFrame:
             )
 
     def dropView(self, name: str | None = None):
-        """DropView.
+        """Drop a DuckDB view and mark its tracked wrapper as inconsistent.
 
         Args:
-            name: TODO describe name.
+            name: View name; defaults to this object's alias.
 
         """
         if name is None:
@@ -852,16 +840,15 @@ class GataFrame:
     def dropColumn(
         self, *cols: Iterable[str | Iterable[str]], inplace: bool = False, table: str | None = None
     ) -> GataFrame | None:
-        """DropColumn.
+        """Drop columns from this relation or a named table.
 
         Args:
-            inplace: TODO describe inplace.
-            table: TODO describe table.
-            cols: TODO describe cols.
+            *cols: Column names or iterables of column names to drop.
+            inplace: Update this object when operating on its own relation.
+            table: Explicit table name to alter; when provided, the tracked wrapper is returned if found.
 
         Returns:
-            TODO describe return value.
-
+            The affected GataFrame when available; otherwise ``None`` for an untracked table.
         """
         list_of_cols: list[str] = []
         for col in cols:
@@ -922,14 +909,13 @@ class GataFrame:
                     return df
 
     def exists(self, name: str | None = None) -> bool:
-        """Exists.
+        """Check whether a table or view with the given name exists.
 
         Args:
-            name: TODO describe name.
+            name: Name to check; defaults to this object's alias.
 
         Returns:
-            TODO describe return value.
-
+            ``True`` if DuckDB resolves the name, otherwise ``False``.
         """
         if name is None:
             if self._alias is None:
@@ -945,7 +931,7 @@ class GataFrame:
             return False
 
     def drop(self):
-        """Drop."""
+        """Drop the aliased table or view represented by this object."""
         if self._alias is None:
             warnings.warn("Current relation has no alias. Drop operation will not be performed.", UserWarning)
             return self
@@ -958,15 +944,14 @@ class GataFrame:
         return self
 
     def insertInto(self, target_table: str | GataFrame, inplace: bool = False) -> GataFrame:
-        """InsertInto.
+        """Append this relation's rows to an existing table.
 
         Args:
-            target_table: TODO describe target_table.
-            inplace: TODO describe inplace.
+            target_table: Destination table name or GataFrame representing a table.
+            inplace: If true, make this object represent the destination table.
 
         Returns:
-            TODO describe return value.
-
+            A GataFrame representing the destination table.
         """
         assert isinstance(target_table, (str, GataFrame)), (
             f"target_table must be a string or GataFrame. Got {type(target_table)}."
@@ -1001,15 +986,14 @@ class GataFrame:
             )  # pyright: ignore[reportOptionalMemberAccess]
 
     def union(self: GataFrame, right: GataFrame | DuckDBPyRelation, inplace: bool = False) -> GataFrame:
-        """Union.
+        """Combine rows from this relation and another relation.
 
         Args:
-            right: TODO describe right.
-            inplace: TODO describe inplace.
+            right: GataFrame or DuckDB relation with compatible columns.
+            inplace: If true, replace this object's relation with the union.
 
         Returns:
-            TODO describe return value.
-
+            The unioned GataFrame.
         """
         right = GataFrame(right, con=self._con)
         new_rel = self._rel.union(right._rel)
@@ -1022,16 +1006,15 @@ class GataFrame:
             return GataFrame(new_rel, self._con, op=f"union()", type_=self.TypeRelation)
 
     def persist(self, temporary: bool = False, force: bool = False, inplace: bool = False) -> GataFrame:
-        """Persist.
+        """Materialize the relation in a table named from this object's UUID.
 
         Args:
-            temporary: TODO describe temporary.
-            force: TODO describe force.
-            inplace: TODO describe inplace.
+            temporary: Create a temporary table when true, otherwise a persistent table.
+            force: Replace an existing persisted table instead of warning.
+            inplace: If true, make this object represent the persisted table.
 
         Returns:
-            TODO describe return value.
-
+            This GataFrame, updated when ``inplace`` is true.
         """
         table_name = f"__persist_{self._uuid}"
         if self.exists(table_name):
@@ -1047,7 +1030,7 @@ class GataFrame:
         return self
 
     def unpersist(self):
-        """Unpersist."""
+        """Drop the table associated with this object's alias, if present."""
         try:
             self.dropTable(f"{self._alias}")
         except Exception:
@@ -1055,16 +1038,15 @@ class GataFrame:
         return self
 
     def sql(self, sql: str, inplace: bool = False, alias: str | None = None) -> GataFrame:
-        """Sql.
+        """Execute a SQL query and wrap its result as a GataFrame.
 
         Args:
-            sql: TODO describe sql.
-            inplace: TODO describe inplace.
-            alias: TODO describe alias.
+            sql: SQL statement that returns a relation.
+            inplace: If true, replace this object's relation with the query result.
+            alias: Optional alias assigned to the returned relation.
 
         Returns:
-            TODO describe return value.
-
+            The query result as a GataFrame.
         """
         new_df = self._con.sql(sql)  # pyright: ignore[reportOptionalMemberAccess]
         op = f"sql({sql[:30]}{'...' if len(sql) > 30 else ''})"
@@ -1079,23 +1061,22 @@ class GataFrame:
             return self._create_from_relation(new_df, alias=alias, op=op)
 
     def execute(self, sql: str):
-        """Execute.
+        """Execute a SQL statement for its side effects.
 
         Args:
-            sql: TODO describe sql.
+            sql: SQL statement to execute on the backing connection.
 
         """
         self._con.execute(sql)  # pyright: ignore[reportOptionalMemberAccess]
 
     def distinct(self, inplace: bool = False) -> GataFrame:
-        """Distinct.
+        """Remove duplicate rows from the relation.
 
         Args:
-            inplace: TODO describe inplace.
+            inplace: If true, update this object; otherwise return a new wrapper.
 
         Returns:
-            TODO describe return value.
-
+            The distinct GataFrame.
         """
         new_df = self._rel.distinct()
         op = "distinct()"
@@ -1110,15 +1091,15 @@ class GataFrame:
     def orderBy(
         self, list_cols: list[str | dict[str, str] | tuple[str, bool] | list[str | bool]] | str, inplace: bool = False
     ) -> GataFrame:
-        """OrderBy.
+        """Sort rows by SQL expressions or column/direction pairs.
 
         Args:
-            list_cols: TODO describe list_cols.
-            inplace: TODO describe inplace.
+            list_cols: A column/expression or sequence of expressions, ``(expression, ascending)``
+                pairs, or dictionaries with ``col`` and ``asc`` keys.
+            inplace: If true, update this object; otherwise return a new wrapper.
 
         Returns:
-            TODO describe return value.
-
+            The sorted GataFrame.
         """
         expr_cols: list[str] = []
         if isinstance(list_cols, str):
@@ -1148,38 +1129,35 @@ class GataFrame:
             return self._create_from_relation(new_df, op=op)
 
     def min(self, col: str) -> Any:
-        """Min.
+        """Return the minimum value in a column.
 
         Args:
-            col: TODO describe col.
+            col: Column name to aggregate.
 
         Returns:
-            TODO describe return value.
-
+            The minimum value, or ``None`` if DuckDB returns no value.
         """
         return self._rel.min(col)
 
     def max(self, col: str) -> Any:
-        """Max.
+        """Return the maximum value in a column.
 
         Args:
-            col: TODO describe col.
+            col: Column name to aggregate.
 
         Returns:
-            TODO describe return value.
-
+            The maximum value, or ``None`` if DuckDB returns no value.
         """
         return self._rel.max(col)
 
     def distinctCount(self, col: str) -> int:
-        """DistinctCount.
+        """Count the distinct non-null values in a column.
 
         Args:
-            col: TODO describe col.
+            col: Column name to aggregate.
 
         Returns:
-            TODO describe return value.
-
+            The distinct-value count.
         """
         ret = self._rel.aggregate(f"COUNT(DISTINCT {col})").fetchone()
         return ret[0] if ret else 0
@@ -1300,15 +1278,15 @@ class GataFrame:
     def as_type(
         self, columns: dict[str, str | DuckDBPyType | GFDataType | dict[str, Any]], inplace: bool = False
     ) -> GataFrame:
-        """As type.
+        """Cast selected columns to DuckDB types.
 
         Args:
-            columns: TODO describe columns.
-            inplace: TODO describe inplace.
+            columns: Mapping of column names to types or conversion options. A specification
+                dictionary accepts ``type`` and optional date, timezone, decimal, and width settings.
+            inplace: If true, update this object; otherwise return a new wrapper.
 
         Returns:
-            TODO describe return value.
-
+            The GataFrame with converted columns.
         """
         if self.empty:
             return self if inplace else self._create_from_relation(self._rel, op="as_type({})")
@@ -1360,11 +1338,10 @@ class GataFrame:
         return self._create_from_relation(new_rel, op=op)
 
     def toPandas(self) -> pd.DataFrame:
-        """ToPandas.
+        """Convert the relation to a Pandas DataFrame.
 
         Returns:
-            TODO describe return value.
-
+            A DataFrame; geometry columns are converted to WKT text.
         """
         dtypes: dict[str, DuckDBPyType] = self.dtypes
         rel = self._rel
@@ -1375,15 +1352,14 @@ class GataFrame:
         return rel.df()
 
     def toGeoPandas(self, geometry: str = "geometry", crs: str = "EPSG:4326") -> gpd.GeoDataFrame:
-        """ToGeoPandas.
+        """Convert the relation to a GeoPandas GeoDataFrame.
 
         Args:
-            geometry: TODO describe geometry.
-            crs: TODO describe crs.
+            geometry: Name of the WKT geometry column.
+            crs: Coordinate reference system assigned to the active geometry column.
 
         Returns:
-            TODO describe return value.
-
+            A GeoDataFrame with the selected geometry column converted from WKT.
         """
         dtypes: dict[str, DuckDBPyType] = self.dtypes
         rel = self._rel
@@ -1402,17 +1378,17 @@ class GataFrame:
         suppress_geometry_default_warnings: bool = False,
         suppress_crs_not_specified_warnings: bool = False,
     ) -> pd.DataFrame | gpd.GeoDataFrame | None:
-        """ToPandasOrGeoPandas.
+        """Convert to Pandas or GeoPandas based on the relation's geometry columns.
 
         Args:
-            geometry: TODO describe geometry.
-            crs: TODO describe crs.
-            suppress_geometry_default_warnings: TODO describe suppress_geometry_default_warnings.
-            suppress_crs_not_specified_warnings: TODO describe suppress_crs_not_specified_warnings.
+            geometry: Preferred geometry column; ``None`` selects the first geometry column.
+            crs: CRS for the active geometry, or a mapping of geometry column names to CRS values.
+                Defaults to ``EPSG:4326`` when geometry is present.
+            suppress_geometry_default_warnings: Suppress warnings about selecting a geometry column.
+            suppress_crs_not_specified_warnings: Suppress the warning when the default CRS is used.
 
         Returns:
-            TODO describe return value.
-
+            A DataFrame when no geometry columns exist, otherwise a GeoDataFrame.
         """
         dtypes: dict[str, DuckDBPyType] = self.dtypes
         rel = self._rel
@@ -1615,16 +1591,15 @@ class GataFrame:
         metadata: dict[str, Any] | None = None,
         reader: dict[str, Any] | None = None,
     ) -> DataSchema:
-        """Get schema.
+        """Build a DataSchema from the relation's columns and metadata.
 
         Args:
-            fields_attributes: TODO describe fields_attributes.
-            metadata: TODO describe metadata.
-            reader: TODO describe reader.
+            fields_attributes: Per-column attributes merged into each generated field definition.
+            metadata: Additional schema metadata values.
+            reader: Reader options to store in the schema.
 
         Returns:
-            TODO describe return value.
-
+            A validated DataSchema describing this relation.
         """
         name = self._description or self._alias or f"relation_{self._uuid}"
         schema: dict[str, Any] = {
@@ -1658,15 +1633,14 @@ class GataFrame:
         return DataSchema.model_validate(schema)
 
     def apply_schema(self, schema: dict[str, Any] | DataSchema, inplace: bool = False) -> GataFrame:
-        """Apply schema.
+        """Apply schema mappings, conversions, generated fields, filters, and projections.
 
         Args:
-            schema: TODO describe schema.
-            inplace: TODO describe inplace.
+            schema: Validated schema object or dictionary accepted by DataSchema.
+            inplace: If true, replace this object's relation with the transformed result.
 
         Returns:
-            TODO describe return value.
-
+            The transformed GataFrame.
         """
         new_df: GataFrame | None = self
 
@@ -1847,15 +1821,14 @@ class GataFrame:
 
     @staticmethod
     def qident(name: str | None, cols: set[str] | list[str] | None = None) -> str:
-        """Qident.
+        """Quote a SQL identifier when needed.
 
         Args:
-            name: TODO describe name.
-            cols: TODO describe cols.
+            name: Identifier to quote; ``None`` produces an empty string.
+            cols: Optional known-column collection; leave the name unchanged if it is absent.
 
         Returns:
-            TODO describe return value.
-
+            A double-quoted identifier with embedded quotes escaped, or the original name.
         """
         if name is None:
             return ""
@@ -1867,14 +1840,13 @@ class GataFrame:
 
     @staticmethod
     def qname(*parts: str) -> str:
-        """Qname.
+        """Join identifier parts into a qualified SQL name.
 
         Args:
-            parts: TODO describe parts.
+            *parts: Identifier components; empty components are omitted.
 
         Returns:
-            TODO describe return value.
-
+            A dot-separated name with each component quoted.
         """
         return ".".join(GataFrame.qident(p, None) for p in parts if p)
 
